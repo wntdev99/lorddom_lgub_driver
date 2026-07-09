@@ -78,6 +78,14 @@ struct Config {
   // 사각지대 근접(<~70mm)에서 최소값에 클램핑되는 거동을 배제하려면 min 을 높인다.
   double min_valid_m = 0.060;  // 사각지대 상한
   double max_valid_m = 1.000;  // 측정 상한
+
+  // --- 자동 재접속 (케이블 분리/USB 재열거 대응) ---
+  // 연속 '통신 실패'(Timeout/CrcError/SerialError 등, NoTarget 은 제외)가
+  // reconnect_after_failures 회 쌓이면 포트를 닫고 다시 연결한다.
+  bool auto_reconnect = true;
+  int reconnect_after_failures = 5;
+  // 재접속 시 configured port 가 안 되면 /dev/ttyUSB* 를 훑어 응답하는 포트를 찾는다.
+  bool rescan_ports = true;
 };
 
 }  // namespace lorddom

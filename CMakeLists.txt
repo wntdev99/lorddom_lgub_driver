@@ -31,6 +31,10 @@ target_link_libraries(lgub_probe PRIVATE lorddom_lgub)
 add_executable(lgub_read_distance examples/read_distance.cpp)
 target_link_libraries(lgub_read_distance PRIVATE lorddom_lgub)
 
+# --- 자동 재접속 검증 데모 ---
+add_executable(lgub_reconnect_demo tools/reconnect_demo.cpp)
+target_link_libraries(lgub_reconnect_demo PRIVATE lorddom_lgub)
+
 # --- 오프라인 테스트 (하드웨어 불필요) ---
 enable_testing()
 add_executable(test_crc16 test/test_crc16.cpp)

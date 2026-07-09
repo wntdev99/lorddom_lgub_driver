@@ -74,6 +74,18 @@ if (r.status == lorddom::Status::Ok)
 ./build/lgub_read_distance /dev/ttyUSB0
 ```
 
+## 견고성 기능
+
+- **무효 측정 필터**: `reg2=0`(대상 없음/범위 초과/빔 이탈)은 `NoTarget`,
+  유효범위(`min_valid_m`~`max_valid_m`, 기본 0.06~1.0m) 밖은 `OutOfRange`로 구분.
+  `DistanceReading.valid` 가 true 일 때만 거리를 신뢰하면 된다.
+- **자동 재접속**: 통신 실패가 `reconnect_after_failures`회 연속되면 포트를 닫고
+  다시 연결한다. `rescan_ports=true` 면 `/dev/ttyUSB*` 를 훑어 응답하는 포트를
+  스스로 찾는다(케이블 재연결로 포트 번호가 바뀌어도 복구). 진단은 `set_log()` 로 통지.
+  ```bash
+  ./build/lgub_reconnect_demo   # 잘못된 포트로 시작해 자동 복구되는 결정적 데모
+  ```
+
 ## 배선 (공식 데이터시트 확정, 모델 LGU1000-18GM55-R4-V15)
 
 M12 x1, 5-pin 커넥터:

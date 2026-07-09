@@ -21,6 +21,8 @@ int main(int argc, char** argv) {
   cfg.scale_to_meter = 0.00017;                    // 확정: 1 count = 0.17mm
 
   lorddom::LgubSensor sensor(cfg);
+  // 재접속 등 내부 진단 메시지를 화면에 표시.
+  sensor.set_log([](const std::string& m) { printf("[SDK] %s\n", m.c_str()); });
   lorddom::Status os = sensor.open();
   if (os != lorddom::Status::Ok) {
     printf("포트 열기 실패: %s (%s)\n", cfg.port.c_str(), lorddom::to_string(os));
