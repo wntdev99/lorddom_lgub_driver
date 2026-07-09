@@ -33,6 +33,13 @@ class LgubSensor {
  public:
   explicit LgubSensor(const Config& cfg) : cfg_(cfg) {}
 
+  // /dev/ttyUSB* 후보 포트 목록(정렬). 하드웨어 진단/자동탐지용.
+  static std::vector<std::string> list_serial_ports();
+
+  // /dev/ttyUSB* 를 훑어 현재 파라미터로 '응답하는' 첫 포트를 cfg.port 에 채운다.
+  // 사용자가 포트를 지정하지 않아도 되게 하는 편의 함수. 성공 시 Ok.
+  static Status autodetect_port(Config& cfg);
+
   Status open();
   void close();
   bool is_open() const { return serial_.is_open(); }

@@ -61,6 +61,35 @@ uint32_t combine(const std::vector<uint16_t>& regs, WordOrder order) {
 }
 }  // namespace
 
+std::vector<std::string> LgubSensor::list_serial_ports() {
+  return list_usb_ports();
+}
+
+Status LgubSensor::autodetect_port(Config& cfg) {
+  std::vector<std::string> candidates;
+  candidates.push_back(cfg.port);  // 지정된 포트 우선
+  for (const auto& p : list_usb_ports()) {
+    if (p != cfg.port) candidates.push_back(p);
+  }
+  for (const auto& port : candidates) {
+    SerialPort sp;
+    if (sp.open(port, cfg.baud, cfg.parity, cfg.data_bits, cfg.stop_bits) !=
+        Status::Ok) {
+      continue;
+    }
+    ModbusRtu mb(sp);
+    ReadResult r = mb.read_registers(cfg.slave_id, cfg.function,
+                                     cfg.distance_register, cfg.register_count,
+                                     cfg.response_timeout_ms,
+                                     cfg.inter_frame_delay_ms);
+    if (r.status == Status::Ok) {
+      cfg.port = port;
+      return Status::Ok;
+    }
+  }
+  return Status::Timeout;
+}
+
 Status LgubSensor::open() {
   return serial_.open(cfg_.port, cfg_.baud, cfg_.parity, cfg_.data_bits,
                       cfg_.stop_bits);
