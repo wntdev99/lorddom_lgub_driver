@@ -44,10 +44,24 @@ DistanceReading LgubSensor::read_distance() {
                                    cfg_.inter_frame_delay_ms);
   out.status = r.status;
   out.raw_registers = r.registers;
-  if (r.status != Status::Ok) return out;
+  if (r.status != Status::Ok) return out;  // 통신 자체 실패
 
   out.raw = combine(r.registers, cfg_.word_order);
   out.distance_m = static_cast<double>(out.raw) * cfg_.scale_to_meter;
+
+  // 실측 확정: reg2=0 은 대상 없음/범위 초과/빔 이탈 (무효 센티넬).
+  if (out.raw == 0) {
+    out.status = Status::NoTarget;
+    out.valid = false;
+    return out;
+  }
+  // 유효 범위 밖 (사각지대 근접 클램핑, 최대 초과 등) 필터.
+  if (out.distance_m < cfg_.min_valid_m || out.distance_m > cfg_.max_valid_m) {
+    out.status = Status::OutOfRange;
+    out.valid = false;
+    return out;
+  }
+  out.valid = true;
   return out;
 }
 

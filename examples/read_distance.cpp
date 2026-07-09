@@ -30,8 +30,12 @@ int main(int argc, char** argv) {
 
   for (;;) {
     lorddom::DistanceReading r = sensor.read_distance();
-    if (r.status == lorddom::Status::Ok) {
+    if (r.valid) {
       printf("거리 = %.3f m  (raw=%u)\n", r.distance_m, r.raw);
+    } else if (r.status == lorddom::Status::NoTarget) {
+      printf("대상 없음 (범위 밖/사각/빔 이탈)\n");
+    } else if (r.status == lorddom::Status::OutOfRange) {
+      printf("범위 밖 값 무시 (%.3f m)\n", r.distance_m);
     } else {
       printf("읽기 실패: %s\n", lorddom::to_string(r.status));
     }

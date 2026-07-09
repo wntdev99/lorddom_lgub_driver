@@ -13,6 +13,8 @@ const char* to_string(Status s) {
     case Status::ExceptionResponse: return "ExceptionResponse";
     case Status::InvalidResponse: return "InvalidResponse";
     case Status::InvalidArgument: return "InvalidArgument";
+    case Status::NoTarget: return "NoTarget";
+    case Status::OutOfRange: return "OutOfRange";
   }
   return "Unknown";
 }

@@ -23,6 +23,9 @@ enum class Status {
   ExceptionResponse,  // Modbus 예외 응답 (function|0x80). exception_code 참고
   InvalidResponse,    // 프레임 구조 불일치 (슬레이브 주소/function 불일치 등)
   InvalidArgument,    // 잘못된 인자
+  // --- 통신은 성공했으나 측정값이 유효하지 않은 경우 ---
+  NoTarget,           // reg2=0: 대상 없음/빔 이탈/범위(최대·사각) 초과 (실측 확정)
+  OutOfRange,         // 값은 나왔으나 [min_valid_m, max_valid_m] 밖
 };
 
 const char* to_string(Status s);
@@ -68,6 +71,13 @@ struct Config {
   // (참고) input reg 0x0000 은 0.1mm 단위 미세값, 0x0001 은 신호강도 추정.
   double scale_to_meter = 0.00017;
   WordOrder word_order = WordOrder::Big;
+
+  // --- 유효성 판정 (실측 확정 거동 반영) ---
+  // reg2=0 은 무조건 무효(NoTarget)로 처리한다.
+  // 추가로 아래 범위를 벗어난 값은 OutOfRange 로 걸러낸다(데이터시트 60~1000mm).
+  // 사각지대 근접(<~70mm)에서 최소값에 클램핑되는 거동을 배제하려면 min 을 높인다.
+  double min_valid_m = 0.060;  // 사각지대 상한
+  double max_valid_m = 1.000;  // 측정 상한
 };
 
 }  // namespace lorddom

@@ -21,6 +21,7 @@ namespace lorddom {
 // 거리 측정 결과.
 struct DistanceReading {
   Status status = Status::NotOpen;
+  bool valid = false;                   // status==Ok 이고 유효범위 내일 때만 true
   double distance_m = 0.0;              // Config.scale_to_meter 적용된 물리 거리
   uint32_t raw = 0;                     // 스케일 적용 전 원시값 (배율 역산/디버깅용)
   std::vector<uint16_t> raw_registers;  // 읽은 원시 레지스터 (진단용)
