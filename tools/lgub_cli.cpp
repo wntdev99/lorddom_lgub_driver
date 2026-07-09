@@ -250,11 +250,82 @@ int cmd_doctor(const Args& a) {
   return 1;
 }
 
+// 거리(0~max_valid_m)를 width칸 막대로. 유효하지 않으면 빈 막대.
+std::string bar(double dist_m, double max_m, int width) {
+  int fill = 0;
+  if (dist_m > 0 && max_m > 0) {
+    fill = (int)((dist_m / max_m) * width + 0.5);
+    if (fill < 0) fill = 0;
+    if (fill > width) fill = width;
+  }
+  std::string s = "[";
+  for (int i = 0; i < width; ++i) s += (i < fill) ? '#' : '.';
+  s += "]";
+  return s;
+}
+
+int cmd_monitor(Args a) {
+  Config cfg;
+  if (prepare(cfg, a, true) != Status::Ok) {
+    fprintf(stderr, "센서를 찾지 못했습니다. `lgub doctor` 로 진단하세요.\n");
+    return 1;
+  }
+  LgubSensor sensor(cfg);
+  sensor.set_log([](const std::string& m) { fprintf(stderr, "\n[SDK] %s\n", m.c_str()); });
+  if (sensor.open() != Status::Ok) { fprintf(stderr, "포트 열기 실패\n"); return 1; }
+
+  if (a.hz <= 0) a.hz = 10.0;
+  int period_ms = (int)(1000.0 / a.hz);
+  double max_m = cfg.max_valid_m;
+
+  using namespace std::chrono;
+  auto start = steady_clock::now();
+  long long n = 0, n_valid = 0;
+  double mn = 1e9, mx = -1e9;
+
+  printf("LGUB 실시간 모니터 (%s, %.0f Hz). Ctrl+C 로 종료.\n",
+         cfg.port.c_str(), a.hz);
+
+  while (true) {
+    DistanceReading r = sensor.read_distance();
+    ++n;
+    const char* label;
+    if (r.valid) {
+      ++n_valid;
+      if (r.distance_m < mn) mn = r.distance_m;
+      if (r.distance_m > mx) mx = r.distance_m;
+      label = "유효";
+    } else if (r.status == Status::NoTarget) {
+      label = "대상없음";
+    } else if (r.status == Status::OutOfRange) {
+      label = "범위밖 ";
+    } else {
+      label = "통신오류";
+    }
+    double secs = duration_cast<milliseconds>(steady_clock::now() - start).count() / 1000.0;
+    double fps = secs > 0 ? n / secs : 0;
+
+    // \r 로 같은 줄을 제자리 갱신. 뒤에 공백을 붙여 잔상 제거.
+    if (r.valid) {
+      printf("\r  %6.1f cm  %s %s | 유효 %.0f%% | %.0f/s   ",
+             r.distance_m * 100.0, bar(r.distance_m, max_m, 24).c_str(), label,
+             n ? 100.0 * n_valid / n : 0, fps);
+    } else {
+      printf("\r  %6s     %s %s | 유효 %.0f%% | %.0f/s   ", "--.-",
+             bar(0, max_m, 24).c_str(), label, n ? 100.0 * n_valid / n : 0, fps);
+    }
+    fflush(stdout);
+    std::this_thread::sleep_for(milliseconds(period_ms));
+  }
+  return 0;
+}
+
 void usage() {
   printf(
       "lgub - LORDDOM LGUB 초음파 거리센서 CLI\n\n"
       "  lgub measure [--json]                     현재 거리 1회\n"
-      "  lgub stream  [--hz N] [--sec S] [--json]  실시간 스트리밍\n"
+      "  lgub monitor [--hz N]                     터미널 실시간 모니터(제자리 갱신)\n"
+      "  lgub stream  [--hz N] [--sec S] [--json]  실시간 스트리밍(줄 단위)\n"
       "  lgub log     --out FILE [--sec S] [--hz N] [--json]  CSV 로깅+요약\n"
       "  lgub doctor  [--json]                     포트 자동탐지·연결·진단\n\n"
       "  공통: [--port /dev/ttyUSBx] (생략 시 자동탐지)\n");
@@ -265,6 +336,7 @@ void usage() {
 int main(int argc, char** argv) {
   Args a = parse(argc, argv);
   if (a.cmd == "measure") return cmd_measure(a);
+  if (a.cmd == "monitor") return cmd_monitor(a);
   if (a.cmd == "stream") return cmd_stream(a);
   if (a.cmd == "log") return cmd_log(a);
   if (a.cmd == "doctor") return cmd_doctor(a);

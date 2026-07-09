@@ -1,6 +1,6 @@
 ---
 name: lgub-sensor
-description: LORDDOM LGUB RS485 초음파 거리센서를 자연어로 조작한다. "거리 재줘/지금 값/현재 거리", "스트리밍/실시간으로 보여줘", "로깅/기록/CSV로 남겨줘", "센서 연결 안 돼/진단해줘" 같은 요청에서 사용. lgub CLI(measure/stream/log/doctor)를 호출하고 결과를 비전문가가 이해할 평이한 한국어로 요약한다. distance sensor, ultrasonic, LGUB, 초음파 트리거.
+description: LORDDOM LGUB RS485 초음파 거리센서를 자연어로 조작한다. 하드웨어를 모르는 사람(하드웨어팀·비전문가·현장 사용자)이 던지는 덜 명확한 요청에도 발동해야 한다. 예) "거리 재줘/지금 값/현재 거리 얼마", "센서 값 좀 보여줘/봐줘", "센서 잘 되나 확인", "스트리밍/실시간으로 보여줘", "로깅/기록/CSV로 남겨줘", "센서 연결 안 돼/왜 안 되지/진단해줘". 센서·거리·초음파·distance·ultrasonic·LGUB·ttyUSB 언급 시 사용. lgub CLI(measure/stream/log/doctor)를 호출하고 결과를 비전문가가 이해할 평이한 한국어(m·cm 병기)로 요약한다.
 ---
 
 # LGUB 초음파 거리센서 자연어 조작
@@ -49,7 +49,19 @@ measure/stream/log JSON 의 필드:
 CLI는 통신이 끊겨도 자동 재접속(`/dev/ttyUSB*` 재탐색)을 시도하므로, 케이블을 다시
 꽂으면 대개 스스로 복구된다.
 
+## 확장 개발 (기존 명령으로 안 되는 요청)
+사용자가 measure/stream/log/doctor 로 안 되는 것을 원하면 **직접 개발해서 실행한다.**
+- **원칙: 반드시 SDK(`lorddom::LgubSensor`) 위에서 개발한다.** 시리얼/Modbus 를 다시
+  짜지 말고 `read_distance()`, `read_registers()`, `autodetect_port()` 등을 재사용한다.
+- 소규모 동작(예: "20cm보다 가까우면 경고", "평균 5회 측정", "임계값 넘으면 로그")은
+  `examples/` 또는 `tools/` 에 작은 C++ 파일을 추가하고 CMakeLists 에 타깃을 넣어
+  `cmake --build build` 로 빌드한 뒤 실행한다.
+- **"앱 만들어줘"류**(대시보드, 알림, 데이터 수집기 등)도 SDK 기반으로 설계·구현한다.
+  UI가 필요하면 CLI/TUI 를 우선하고, 필요 시 CSV/JSON 출력을 다른 도구에 연결한다.
+- 새로 만든 것은 빌드·실행으로 실제 동작을 확인한 뒤 사용자에게 결과를 요약한다.
+
 ## 안전 수칙
-- 이 Skill의 명령은 **읽기 전용**이다.
+- measure/stream/log/monitor/doctor 는 **읽기 전용**이다.
 - 슬레이브 주소·보드레이트 변경(write) 은 잘못하면 통신이 끊긴다. 사용자가 명시적으로
   요청하고 위험을 확인하기 전에는 절대 수행하지 않는다.
+- 새로 개발하는 프로그램도 기본은 읽기 전용으로 하고, 쓰기·설정변경은 명시적 확인 후에만.

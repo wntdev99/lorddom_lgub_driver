@@ -86,6 +86,17 @@ if (r.status == lorddom::Status::Ok)
   ./build/lgub_reconnect_demo   # 잘못된 포트로 시작해 자동 복구되는 결정적 데모
   ```
 
+## 통합 CLI (`lgub`) — 자연어 비서가 호출하는 실행 입구
+```bash
+./build/lgub doctor                 # 포트 자동탐지·연결·전원/배선 진단
+./build/lgub measure --json         # 현재 거리 1회 (기계판독)
+./build/lgub monitor --hz 10        # 터미널 실시간 모니터(제자리 갱신, Ctrl+C 종료)
+./build/lgub stream --sec 30        # 줄 단위 스트리밍
+./build/lgub log --out d.csv --sec 60  # CSV 로깅 + 유효율/평균/최소/최대 요약
+```
+포트를 생략하면 `/dev/ttyUSB*` 를 자동 탐지한다. 비전문가는 `.claude/skills/`의
+`lgub-sensor`·`lgub-monitor` 스킬을 통해 자연어로 위 기능을 쓸 수 있다.
+
 ## 배선 (공식 데이터시트 확정, 모델 LGU1000-18GM55-R4-V15)
 
 M12 x1, 5-pin 커넥터:
