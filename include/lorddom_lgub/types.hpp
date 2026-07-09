@@ -53,18 +53,20 @@ struct Config {
   int stop_bits = 1;
 
   // --- Modbus 계층 ---
-  uint8_t slave_id = 1;                          // 기본 슬레이브 주소
-  FunctionCode function = FunctionCode::ReadHolding;
-  uint16_t distance_register = 0x0000;           // 거리값 레지스터 주소
-  uint16_t register_count = 1;                   // 1=16비트, 2=32비트 값
+  // 아래 기본값은 LGU1000-18GM55-R4-V15 실물 프로빙으로 확정된 값이다
+  // (2026-07-09, /dev/ttyUSB0, FTDI). 다른 개체/모델이면 lgub_probe 로 재확인.
+  uint8_t slave_id = 1;                          // 확정: 슬레이브 주소 1
+  FunctionCode function = FunctionCode::ReadInput;  // 확정: 0x04 Input Registers
+  uint16_t distance_register = 0x0002;           // 확정: 거리값은 input reg 0x0002
+  uint16_t register_count = 1;                   // 16비트 단일 레지스터
   int response_timeout_ms = 300;                 // 응답 대기 한계
   int inter_frame_delay_ms = 10;                 // 요청 전 라인 안정화 대기
 
   // --- 물리량 해석 ---
   // 실제 거리(m) = raw * scale_to_meter.
-  // 예: raw가 mm 단위면 0.001, cm 단위면 0.01, (mm x10) 단위면 0.0001.
-  // 프로빙 시 알려진 거리에 대고 raw를 읽어 역산한다.
-  double scale_to_meter = 0.001;
+  // 확정: reg 0x0002 는 1 count = 0.17mm (데이터시트 분해능과 일치) → 0.00017.
+  // (참고) input reg 0x0000 은 0.1mm 단위 미세값, 0x0001 은 신호강도 추정.
+  double scale_to_meter = 0.00017;
   WordOrder word_order = WordOrder::Big;
 };
 

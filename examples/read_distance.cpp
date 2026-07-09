@@ -9,14 +9,16 @@
 #include "lorddom_lgub/lgub_sensor.hpp"
 
 int main(int argc, char** argv) {
+  // 아래 값은 LGU1000-18GM55-R4-V15 실물 프로빙으로 확정된 값이다.
+  // (Config 기본값과 동일하므로 사실 명시하지 않아도 되지만, 예시로 남겨둔다.)
   lorddom::Config cfg;
   cfg.port = (argc > 1) ? argv[1] : "/dev/ttyUSB0";
-  cfg.baud = 9600;                 // 프로빙으로 확정
-  cfg.slave_id = 1;                // 프로빙으로 확정
-  cfg.function = lorddom::FunctionCode::ReadHolding;
-  cfg.distance_register = 0x0000;  // 프로빙으로 확정
+  cfg.baud = 9600;                                 // 확정
+  cfg.slave_id = 1;                                // 확정
+  cfg.function = lorddom::FunctionCode::ReadInput; // 확정: 0x04
+  cfg.distance_register = 0x0002;                  // 확정: input reg 0x0002
   cfg.register_count = 1;
-  cfg.scale_to_meter = 0.001;      // raw 가 mm 라고 가정. 프로빙으로 확정
+  cfg.scale_to_meter = 0.00017;                    // 확정: 1 count = 0.17mm
 
   lorddom::LgubSensor sensor(cfg);
   lorddom::Status os = sensor.open();
@@ -33,6 +35,7 @@ int main(int argc, char** argv) {
     } else {
       printf("읽기 실패: %s\n", lorddom::to_string(r.status));
     }
+    fflush(stdout);  // 실시간 스트림: 파이프/리다이렉트에서도 즉시 반영
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
   return 0;
