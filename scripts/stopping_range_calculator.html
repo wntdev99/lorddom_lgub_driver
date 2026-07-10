@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>초음파 정지거리 · 최소 감지거리 계산기</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ink: #1a2230;
+    --ink-soft: #4a5568;
+    --ink-faint: #7a8699;
+    --ground: #eef1f5;
+    --panel: #f8fafc;
+    --panel-2: #ffffff;
+    --line: #d9dfe8;
+    --line-soft: #e6eaf0;
+    --accent: #0e8f9c;
+    --accent-ink: #0b6b75;
+    --safe: #12805c;
+    --safe-bg: #e2f3ec;
+    --warn: #a9691a;
+    --warn-bg: #f6ecd8;
+    --crit: #bd3a2e;
+    --crit-bg: #f7e2df;
+    --react: #4b7bec;
+    --brake: #0e8f9c;
+    --marginc: #9aa6b6;
+    --ceiling: #bd3a2e;
+    --shadow: 0 1px 2px rgba(24,34,52,.06), 0 8px 24px rgba(24,34,52,.06);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e7ecf3;
+      --ink-soft: #a9b4c4;
+      --ink-faint: #6f7d92;
+      --ground: #0e131b;
+      --panel: #161d28;
+      --panel-2: #1c2531;
+      --line: #2a3543;
+      --line-soft: #222c39;
+      --accent: #2bb7c4;
+      --accent-ink: #6fd8e2;
+      --safe: #3fc394;
+      --safe-bg: #12291f;
+      --warn: #e0aa54;
+      --warn-bg: #2c2312;
+      --crit: #f0776a;
+      --crit-bg: #2e1714;
+      --react: #6b93f5;
+      --brake: #2bb7c4;
+      --marginc: #6b7787;
+      --ceiling: #f0776a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ink: #1a2230; --ink-soft: #4a5568; --ink-faint: #7a8699;
+    --ground: #eef1f5; --panel: #f8fafc; --panel-2: #ffffff;
+    --line: #d9dfe8; --line-soft: #e6eaf0;
+    --accent: #0e8f9c; --accent-ink: #0b6b75;
+    --safe: #12805c; --safe-bg: #e2f3ec; --warn: #a9691a; --warn-bg: #f6ecd8;
+    --crit: #bd3a2e; --crit-bg: #f7e2df;
+    --react: #4b7bec; --brake: #0e8f9c; --marginc: #9aa6b6; --ceiling: #bd3a2e;
+    --shadow: 0 1px 2px rgba(24,34,52,.06), 0 8px 24px rgba(24,34,52,.06);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ink: #e7ecf3; --ink-soft: #a9b4c4; --ink-faint: #6f7d92;
+    --ground: #0e131b; --panel: #161d28; --panel-2: #1c2531;
+    --line: #2a3543; --line-soft: #222c39;
+    --accent: #2bb7c4; --accent-ink: #6fd8e2;
+    --safe: #3fc394; --safe-bg: #12291f; --warn: #e0aa54; --warn-bg: #2c2312;
+    --crit: #f0776a; --crit-bg: #2e1714;
+    --react: #6b93f5; --brake: #2bb7c4; --marginc: #6b7787; --ceiling: #f0776a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 64px; }
+
+  header.top { margin-bottom: 22px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent-ink); font-weight: 700; margin: 0 0 6px;
+  }
+  h1 { font-size: clamp(22px, 3vw, 30px); margin: 0 0 6px; letter-spacing: -.01em; text-wrap: balance; }
+  .sub { color: var(--ink-soft); margin: 0; max-width: 62ch; font-size: 14px; }
+  .formula {
+    margin-top: 14px; font-family: var(--mono); font-size: 13px;
+    color: var(--ink-soft); background: var(--panel); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 10px 14px; display: inline-block;
+  }
+  .formula b { color: var(--ink); }
+
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow);
+  }
+  .panel-h {
+    padding: 14px 18px; border-bottom: 1px solid var(--line-soft);
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .panel-b { padding: 18px; }
+
+  /* controls */
+  .ctrl { margin-bottom: 20px; }
+  .ctrl:last-child { margin-bottom: 4px; }
+  .ctrl-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; gap: 8px; }
+  .ctrl-top label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .ctrl-top .hint { font-size: 11px; color: var(--ink-faint); }
+  .val {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: 14px; font-weight: 600; color: var(--accent-ink);
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    background: var(--line); border-radius: 3px; outline: none; margin: 4px 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+    border: 3px solid var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--accent);
+    cursor: pointer; border: 3px solid var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  input[type=range]:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
+  .rangewrap { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-faint); font-family: var(--mono); margin-top: 1px; }
+
+  .sensor-note {
+    margin-top: 6px; font-size: 12px; color: var(--ink-soft);
+    background: var(--panel-2); border: 1px dashed var(--line);
+    border-radius: 8px; padding: 10px 12px; line-height: 1.55;
+  }
+  .sensor-note b { color: var(--ink); }
+
+  /* result hero */
+  .hero {
+    display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
+    padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--panel); box-shadow: var(--shadow); margin-bottom: 20px;
+    transition: background .25s, border-color .25s;
+  }
+  .hero.state-safe { border-color: color-mix(in srgb, var(--safe) 45%, var(--line)); }
+  .hero.state-warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+  .hero.state-crit { border-color: color-mix(in srgb, var(--crit) 55%, var(--line)); }
+  .hero .label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin-bottom: 2px; }
+  .bignum { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(36px, 7vw, 56px); font-weight: 700; letter-spacing: -.02em; line-height: 1; color: var(--ink); }
+  .bignum .u { font-size: .38em; color: var(--ink-soft); font-weight: 600; margin-left: 6px; }
+  .bignum .cm { font-size: .32em; color: var(--ink-faint); font-weight: 500; display: block; margin-top: 6px; }
+
+  .badge {
+    display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    text-align: right;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px;
+    padding: 8px 14px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .pill.safe { color: var(--safe); background: var(--safe-bg); }
+  .pill.warn { color: var(--warn); background: var(--warn-bg); }
+  .pill.crit { color: var(--crit); background: var(--crit-bg); }
+  .badge .detail { font-size: 12px; color: var(--ink-soft); font-family: var(--mono); }
+
+  /* breakdown bar */
+  .bd-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .bd-head .t { font-size: 13px; font-weight: 600; }
+  .bd-head .ceil-note { font-size: 11px; color: var(--ink-faint); font-family: var(--mono); }
+  .stack {
+    position: relative; height: 40px; border-radius: 8px; overflow: hidden;
+    background: var(--panel-2); border: 1px solid var(--line); display: flex;
+  }
+  .seg { height: 100%; transition: width .25s ease; min-width: 0; }
+  .seg.react { background: var(--react); }
+  .seg.brake { background: var(--brake); }
+  .seg.margin { background: var(--marginc); }
+  .ceiling-line {
+    position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ceiling);
+    transition: left .25s ease; z-index: 3;
+  }
+  .ceiling-flag {
+    position: absolute; top: -20px; transform: translateX(-50%);
+    font-size: 10px; font-family: var(--mono); color: var(--ceiling); font-weight: 700;
+    white-space: nowrap;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
+  .legend .item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); }
+  .legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .legend .item b { color: var(--ink); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* chart */
+  .chart-wrap { position: relative; }
+  canvas { width: 100%; display: block; }
+  .chart-cap { font-size: 12px; color: var(--ink-faint); margin-top: 8px; text-align: center; }
+
+  /* table */
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  th { font-family: var(--sans); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  tr.now td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  tr.now td:first-child { font-weight: 700; color: var(--accent-ink); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 5px; font-family: var(--sans); }
+  .tag.safe { color: var(--safe); background: var(--safe-bg); }
+  .tag.warn { color: var(--warn); background: var(--warn-bg); }
+  .tag.crit { color: var(--crit); background: var(--crit-bg); }
+
+  .section-gap { margin-top: 20px; }
+  .foot { margin-top: 28px; font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+  .foot code { font-family: var(--mono); background: var(--panel); padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line-soft); }
+
+  .theme-toggle {
+    position: fixed; top: 14px; right: 14px; z-index: 10;
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink-soft);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; font-family: var(--sans);
+    box-shadow: var(--shadow);
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeBtn" type="button">◑ 테마</button>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">LGUB 초음파 · 안전 정지 설계</p>
+    <h1>정면 초음파 센서 최소 감지거리 계산기</h1>
+    <p class="sub">로봇이 v로 직진하다 정면 장애물 앞에서 멈추려면, 센서는 최소 얼마나 먼 거리부터 장애물을 봐야 하는가. 감지에서 완전 정지까지 필요한 거리를 <b>반응 · 제동 · 안전여유</b> 세 성분으로 나눠 계산하고, LGUB 센서의 물리적 감지 천장과 대조합니다.</p>
+    <div class="formula">D<sub>min</sub> = <b>v·t</b><sub>sys</sub> (반응) + <b>v²/(2a)</b> (제동) + <b>D</b><sub>여유</sub></div>
+  </header>
+
+  <div class="grid">
+    <!-- CONTROLS -->
+    <section class="panel">
+      <div class="panel-h">주행 · 시스템 설정</div>
+      <div class="panel-b">
+
+        <div class="ctrl">
+          <div class="ctrl-top"><label for="v">주행 속도 <span class="hint">v</span></label><span class="val" id="vVal">0.60 m/s</span></div>
+          <input type="range" id="v" min="0.1" max="2.0" step="0.05" value="0.6">
+          <div class="rangewrap"><span>0.1</span><span>2.0 m/s</span></div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top"><label for="a">최대 감속도 <span class="hint">a</span></label><span class="val" id="aVal">1.50 m/s²</span></div>
+          <input type="range" id="a" min="0.2" max="5.0" step="0.1" value="1.5">
+          <div class="rangewrap"><span>0.2</span><span>5.0 m/s²</span></div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top"><label for="t">시스템 지연 <span class="hint">t_sys</span></label><span class="val" id="tVal">120 ms</span></div>
+          <input type="range" id="t" min="0" max="500" step="5" value="120">
+          <div class="rangewrap"><span>0</span><span>500 ms</span></div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top"><label for="m">안전 여유 <span class="hint">D_여유</span></label><span class="val" id="mVal">0.15 m</span></div>
+          <input type="range" id="m" min="0" max="0.5" step="0.01" value="0.15">
+          <div class="rangewrap"><span>0</span><span>0.50 m</span></div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-top"><label for="r">센서 최대 감지거리 <span class="hint">R</span></label><span class="val" id="rVal">1.00 m</span></div>
+          <input type="range" id="r" min="0.3" max="6.0" step="0.05" value="1.0">
+          <div class="rangewrap"><span>0.3</span><span>6.0 m</span></div>
+        </div>
+
+        <div class="sensor-note" id="sensorNote">
+          <b>LGU1000</b> 데이터시트 기준값 — 최대 <b>1.00 m</b> · 사각지대 <b>0~0.06 m</b> · 응답 <b>52 ms</b>(≈19 Hz). 기본 지연 120 ms는 센서 응답 52 ms + RS485/제어/모터 응답 여유를 합산한 예시입니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <div>
+      <div class="hero" id="hero">
+        <div>
+          <div class="label">필요 최소 감지거리 D<sub>min</sub></div>
+          <div class="bignum"><span id="dmin">0.00</span><span class="u">m</span><span class="cm" id="dminCm">= 0 cm</span></div>
+        </div>
+        <div class="badge">
+          <span class="pill" id="pill"><span id="pillText">—</span></span>
+          <span class="detail" id="verdictDetail"></span>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="panel-h">거리 성분 분해</div>
+        <div class="panel-b">
+          <div class="bd-head">
+            <span class="t">감지 → 완전 정지까지 이동 거리</span>
+            <span class="ceil-note" id="ceilNote"></span>
+          </div>
+          <div class="stack" id="stack">
+            <div class="seg react" id="segReact"></div>
+            <div class="seg brake" id="segBrake"></div>
+            <div class="seg margin" id="segMargin"></div>
+            <div class="ceiling-line" id="ceilLine"><span class="ceiling-flag">센서 천장 R</span></div>
+          </div>
+          <div class="legend">
+            <div class="item"><span class="sw" style="background:var(--react)"></span>반응거리 <b id="lgReact">0</b></div>
+            <div class="item"><span class="sw" style="background:var(--brake)"></span>제동거리 <b id="lgBrake">0</b></div>
+            <div class="item"><span class="sw" style="background:var(--marginc)"></span>안전여유 <b id="lgMargin">0</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel section-gap">
+        <div class="panel-h">속도–필요 감지거리 곡선</div>
+        <div class="panel-b">
+          <div class="chart-wrap"><canvas id="chart" height="300"></canvas></div>
+          <p class="chart-cap">청록 곡선이 빨간 천장선(R)을 넘는 지점부터는 이 센서로 제때 멈출 수 없습니다.</p>
+        </div>
+      </section>
+
+      <section class="panel section-gap">
+        <div class="panel-h">속도별 요약</div>
+        <div class="panel-b table-scroll">
+          <table>
+            <thead>
+              <tr><th>속도</th><th>반응</th><th>제동</th><th>여유</th><th>필요 D_min</th><th>여유(R−D)</th><th>판정</th></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">
+    모델: <code>D_min = v·t_sys + v²/(2a) + D_여유</code>. 제동거리는 일정 감속 <code>a</code> 가정(<code>v²/2a</code>)이며, 노면 미끄러짐·경사·타이어 응답 지연은 <code>a</code>와 <code>D_여유</code>로 흡수합니다. 빔 각도(시야각)는 데이터시트 미기재 — 정면 좁은 장애물은 빔 폭 밖으로 벗어날 수 있어 이 계산은 <b>정면 정렬 장애물 기준</b>입니다.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = ["v", "a", "t", "m", "r"];
+  var chart = $("chart");
+  var ctx = chart.getContext("2d");
+
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  function compute(v, a, tms, mrg) {
+    var t = tms / 1000;
+    var react = v * t;
+    var brake = (v * v) / (2 * a);
+    return { react: react, brake: brake, margin: mrg, dmin: react + brake + mrg };
+  }
+
+  // 주어진 R 안에서 안전한 최대 속도 (2차방정식 해)
+  function maxSafeSpeed(a, tms, mrg, R) {
+    var t = tms / 1000;
+    var A = 1 / (2 * a), B = t, C = mrg - R;
+    var disc = B * B - 4 * A * C;
+    if (disc < 0) return 0;
+    var v = (-B + Math.sqrt(disc)) / (2 * A);
+    return v > 0 ? v : 0;
+  }
+
+  function fmt(x, d) { return x.toFixed(d === undefined ? 2 : d); }
+
+  function verdict(dmin, R) {
+    if (dmin > R) return "crit";
+    if (dmin > R * 0.85) return "warn";
+    return "safe";
+  }
+
+  function render() {
+    var v = parseFloat($("v").value);
+    var a = parseFloat($("a").value);
+    var tms = parseFloat($("t").value);
+    var mrg = parseFloat($("m").value);
+    var R = parseFloat($("r").value);
+
+    $("vVal").textContent = fmt(v) + " m/s";
+    $("aVal").textContent = fmt(a) + " m/s²";
+    $("tVal").textContent = tms.toFixed(0) + " ms";
+    $("mVal").textContent = fmt(mrg) + " m";
+    $("rVal").textContent = fmt(R) + " m";
+
+    var c = compute(v, a, tms, mrg);
+    var state = verdict(c.dmin, R);
+
+    $("dmin").textContent = fmt(c.dmin);
+    $("dminCm").textContent = "= " + Math.round(c.dmin * 100) + " cm";
+
+    var hero = $("hero");
+    hero.className = "hero state-" + state;
+    var pill = $("pill");
+    pill.className = "pill " + state;
+    var vmax = maxSafeSpeed(a, tms, mrg, R);
+    if (state === "crit") {
+      $("pillText").textContent = "이 센서로는 못 멈춤";
+      $("verdictDetail").textContent = "필요 " + fmt(c.dmin) + " m > 천장 " + fmt(R) + " m";
+    } else if (state === "warn") {
+      $("pillText").textContent = "빠듯함 · 천장 근접";
+      $("verdictDetail").textContent = "여유 " + fmt(R - c.dmin) + " m 만 남음";
+    } else {
+      $("pillText").textContent = "정지 가능";
+      $("verdictDetail").textContent = "여유 " + fmt(R - c.dmin) + " m";
+    }
+
+    // 스택바: 척도는 max(dmin, R) 기준
+    var scale = Math.max(c.dmin, R) * 1.02;
+    $("segReact").style.width = (c.react / scale * 100) + "%";
+    $("segBrake").style.width = (c.brake / scale * 100) + "%";
+    $("segMargin").style.width = (c.margin / scale * 100) + "%";
+    var ceilPct = Math.min(R / scale * 100, 100);
+    $("ceilLine").style.left = ceilPct + "%";
+    $("ceilNote").textContent = "필요 " + fmt(c.dmin) + " m / 천장 " + fmt(R) + " m";
+
+    $("lgReact").textContent = Math.round(c.react * 100) + " cm";
+    $("lgBrake").textContent = Math.round(c.brake * 100) + " cm";
+    $("lgMargin").textContent = Math.round(c.margin * 100) + " cm";
+
+    buildTable(a, tms, mrg, R, v);
+    drawChart(a, tms, mrg, R, v, vmax);
+  }
+
+  function tag(state) {
+    var t = { safe: "정지 가능", warn: "빠듯함", crit: "불가" };
+    return '<span class="tag ' + state + '">' + t[state] + "</span>";
+  }
+
+  function buildTable(a, tms, mrg, R, vNow) {
+    var speeds = [0.3, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    var rows = "";
+    speeds.forEach(function (v) {
+      var c = compute(v, a, tms, mrg);
+      var st = verdict(c.dmin, R);
+      var near = Math.abs(v - vNow) < 0.026;
+      rows += '<tr class="' + (near ? "now" : "") + '">' +
+        "<td>" + fmt(v) + " m/s</td>" +
+        "<td>" + fmt(c.react) + "</td>" +
+        "<td>" + fmt(c.brake) + "</td>" +
+        "<td>" + fmt(c.margin) + "</td>" +
+        "<td>" + fmt(c.dmin) + " m</td>" +
+        "<td>" + fmt(R - c.dmin) + "</td>" +
+        "<td>" + tag(st) + "</td></tr>";
+    });
+    $("tbody").innerHTML = rows;
+  }
+
+  function drawChart(a, tms, mrg, R, vNow, vmax) {
+    var dpr = window.devicePixelRatio || 1;
+    var W = chart.clientWidth, H = 300;
+    chart.width = W * dpr; chart.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    var padL = 46, padR = 14, padT = 16, padB = 34;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var vMaxAxis = 2.0;
+    var dMaxData = compute(vMaxAxis, a, tms, mrg).dmin;
+    var yMax = Math.max(dMaxData, R) * 1.08;
+
+    var x = function (v) { return padL + (v / vMaxAxis) * plotW; };
+    var y = function (d) { return padT + plotH - (d / yMax) * plotH; };
+
+    var cLine = css("--line"), cSoft = css("--ink-soft"), cFaint = css("--ink-faint");
+    var cAcc = css("--brake"), cCeil = css("--ceiling"), cCrit = css("--crit");
+
+    // grid Y
+    ctx.font = "11px " + "ui-monospace, monospace";
+    ctx.textBaseline = "middle";
+    var yticks = 5;
+    for (var i = 0; i <= yticks; i++) {
+      var dv = (yMax / yticks) * i;
+      var yy = y(dv);
+      ctx.strokeStyle = cLine; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+      ctx.fillStyle = cFaint; ctx.textAlign = "right";
+      ctx.fillText(dv.toFixed(1), padL - 8, yy);
+    }
+    // grid X
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (var vx = 0; vx <= vMaxAxis + 0.001; vx += 0.5) {
+      var xx = x(vx);
+      ctx.fillStyle = cFaint;
+      ctx.fillText(vx.toFixed(1), xx, H - padB + 8);
+    }
+    // axis labels
+    ctx.fillStyle = cSoft; ctx.textAlign = "center";
+    ctx.fillText("속도 v (m/s)", padL + plotW / 2, H - 14);
+    ctx.save();
+    ctx.translate(13, padT + plotH / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillText("필요 감지거리 (m)", 0, 0);
+    ctx.restore();
+
+    // 초과 영역 음영 (dmin > R)
+    ctx.fillStyle = css("--crit-bg");
+    ctx.globalAlpha = 0.7;
+    if (vmax > 0 && vmax < vMaxAxis) {
+      ctx.fillRect(x(vmax), padT, x(vMaxAxis) - x(vmax), plotH);
+    } else if (vmax <= 0) {
+      ctx.fillRect(padL, padT, plotW, plotH);
+    }
+    ctx.globalAlpha = 1;
+
+    // 천장선 R
+    ctx.strokeStyle = cCeil; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, y(R)); ctx.lineTo(W - padR, y(R)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = cCeil; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("센서 천장 R = " + R.toFixed(2) + " m", padL + 6, y(R) - 3);
+
+    // D_min 곡선
+    ctx.strokeStyle = cAcc; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (var v = 0; v <= vMaxAxis + 0.001; v += 0.02) {
+      var d = compute(v, a, tms, mrg).dmin;
+      var px = x(v), py = y(d);
+      if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // vmax 세로선
+    if (vmax > 0 && vmax < vMaxAxis) {
+      ctx.strokeStyle = cCrit; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x(vmax), padT); ctx.lineTo(x(vmax), padT + plotH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = cCrit; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText("최대 " + vmax.toFixed(2) + " m/s", x(vmax), padT + 2);
+    }
+
+    // 현재 동작점
+    var dNow = compute(vNow, a, tms, mrg).dmin;
+    var cx = x(vNow), cy = y(Math.min(dNow, yMax));
+    ctx.fillStyle = cAcc;
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = css("--panel"); ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  ids.forEach(function (id) { $(id).addEventListener("input", render); });
+
+  // theme toggle
+  $("themeBtn").addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    var next = cur === "dark" ? "light" : cur === "light" ? "dark"
+      : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+    document.documentElement.setAttribute("data-theme", next);
+    render();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+  window.addEventListener("resize", render);
+
+  render();
+})();
+</script>
+</body>
+</html>
