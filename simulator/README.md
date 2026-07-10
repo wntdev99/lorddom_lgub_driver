@@ -47,8 +47,8 @@ simulator/
 ## 진행 상태 (마일스톤)
 
 - [x] **M1** — 3D 뷰 + URDF 로딩 (Z-up ROS 좌표계, 관절 조작, 자동 시점맞춤)
-- [ ] **M2** — 양측 3D 통로 + 프리미티브 장애물 + 제자리 선회 스윕
-- [ ] **M3** — 다중 `ultrasonic` 센서 배치 (부모링크·6DOF·FOV·min/max_range)
+- [x] **M2** — 양측 3D 통로 + 프리미티브 장애물 + 제자리 선회 스윕
+- [x] **M3** — 다중 `ultrasonic` 센서 배치 (부모링크·6DOF·FOV·min/max_range, 콘 시각화, 최근접 반사 감지)
 - [ ] **M4** — nav2 RangeSensorLayer costmap 재현 (5cm, 감지 상세 리드아웃)
 - [ ] **M5** — 커버리지/사각 맵 + 센서 간 간섭 경고
 - [ ] **M6** — 기존 URDF에 센서 반영 내보내기

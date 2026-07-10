@@ -123,6 +123,13 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">초음파 센서 (ultrasonic)</div>
+      <button class="btn" id="addSensor">+ 센서 추가</button>
+      <div id="senList" style="display:flex;flex-wrap:wrap;gap:4px;margin:9px 0 0;"></div>
+      <div id="senEdit" style="display:none;margin-top:9px;"></div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">제자리 선회 스윕</div>
       <div class="row"><label>표시</label><input type="checkbox" id="sweepOn"></div>
       <div class="row"><label>선회 반경 R</label><span class="v" id="sweepR">— m</span></div>
@@ -134,7 +141,7 @@
       <div class="milestone">
         ✅ M1 — 3D 뷰 + URDF 로딩<br>
         ✅ M2 — 통로·장애물·선회 스윕<br>
-        ⬜ M3 — 초음파 센서 배치<br>
+        ✅ M3 — 초음파 센서 배치<br>
         ⬜ M4 — nav2 costmap<br>
         ⬜ M5 — 커버리지/간섭<br>
         ⬜ M6 — URDF 내보내기
@@ -249,6 +256,7 @@ function buildJointUI() {
       robot.setJointValue(j.name, val);
       document.getElementById('jv-' + j.name).textContent = val.toFixed(2) + ' ' + unit;
       updateSweep();
+      scheduleDetect();
     });
   }
 }
@@ -278,8 +286,12 @@ function fitView() {
 document.getElementById('btnFit').addEventListener('click', fitView);
 
 // ── M2: 통로 / 장애물 / 선회 스윕 ───────────────────────────
-// 센서 레이캐스트 대상(M3에서 사용): 통로벽 + 장애물 mesh
+// 센서 레이캐스트 대상: 통로벽 + 장애물 mesh
 const raycastTargets = [];
+// M3 공유 상태 (init 중 buildCorridor→scheduleDetect 호출보다 먼저 초기화되어야 함)
+const sensors = [];
+let sensorSeq = 0, selSensor = null, detectDirty = false;
+function scheduleDetect() { detectDirty = true; }
 function dropTargets(kind) {
   for (let i = raycastTargets.length - 1; i >= 0; i--)
     if (raycastTargets[i].userData.kind === kind) raycastTargets.splice(i, 1);
@@ -304,6 +316,7 @@ function buildCorridor() {
     corridorGroup.add(m);
     raycastTargets.push(m);
   }
+  scheduleDetect();
 }
 const corrOn = document.getElementById('corrOn'), corrW = document.getElementById('corrW'),
       corrL = document.getElementById('corrL'), corrH = document.getElementById('corrH');
@@ -322,6 +335,7 @@ function addObstacle(type) {
   obstacles.push(o);
   rebuildObsMesh(o);
   selectObs(o.id);
+  scheduleDetect();
 }
 function rebuildObsMesh(o) {
   if (o.mesh) {
@@ -389,6 +403,7 @@ function buildObsEdit() {
       o[key] = +el.value;
       document.getElementById(id + 'v').textContent = (+el.value).toFixed(fix) + unit;
       if (geo) rebuildObsMesh(o); else applyObsTransform(o);
+      scheduleDetect();
     });
   };
   bind('ox', 'x', false, 2, ' m'); bind('oy', 'y', false, 2, ' m'); bind('oz', 'z', false, 2, ' m');
@@ -401,6 +416,7 @@ function buildObsEdit() {
     obstacles.splice(obstacles.indexOf(o), 1);
     selectedId = obstacles.length ? obstacles[obstacles.length - 1].id : null;
     selectObs(selectedId);
+    scheduleDetect();
   };
 }
 document.getElementById('addBox').onclick = () => addObstacle('box');
@@ -411,11 +427,21 @@ renderObsList();
 const sweepGroup = new THREE.Group();
 scene.add(sweepGroup);
 const sweepOn = document.getElementById('sweepOn');
+// 로봇 몸체 bbox (센서 콘 등 sensorPart 제외)
+function robotBodyBox() {
+  const box = new THREE.Box3();
+  robot.updateMatrixWorld(true);
+  robot.traverse(o => {
+    if (o.userData.sensorPart || !o.isMesh || !o.geometry) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));
+  });
+  return box;
+}
 function updateSweep() {
   sweepGroup.clear();
   if (!robot || !sweepOn.checked) { document.getElementById('sweepR').textContent = '— m'; return; }
-  robot.updateMatrixWorld(true);
-  const b = new THREE.Box3().setFromObject(robot);
+  const b = robotBodyBox();
   if (b.isEmpty()) return;
   let R = 0;
   for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) R = Math.max(R, Math.hypot(x, y));
@@ -431,6 +457,181 @@ sweepOn.addEventListener('change', updateSweep);
 
 buildCorridor();
 
+// ── M3: 초음파 센서 배치 / 콘 / 최근접 반사 감지 ────────────
+const PALETTE = [0x2bb7c4, 0xe0aa54, 0x8e7bef, 0x4ade80, 0xf0776a, 0x38bdf8, 0xfb923c, 0xf472b6];
+
+function robotExtents() {
+  const b = robotBodyBox(); // 센서 콘 제외한 몸체만
+  const base = robot.links['base_link'] || robot;
+  const bp = new THREE.Vector3(); base.getWorldPosition(bp);
+  return { b, bp };
+}
+function coneGeometry(fovH, fovV, maxR) {
+  const seg = 40, aY = maxR * Math.tan(fovH * Math.PI / 360), bZ = maxR * Math.tan(fovV * Math.PI / 360), pos = [];
+  for (let i = 0; i < seg; i++) {
+    const t0 = i / seg * 2 * Math.PI, t1 = (i + 1) / seg * 2 * Math.PI;
+    pos.push(0, 0, 0, maxR, aY * Math.cos(t1), bZ * Math.sin(t1), maxR, aY * Math.cos(t0), bZ * Math.sin(t0));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function rimLine(fovH, fovV, maxR, color) {
+  const seg = 48, aY = maxR * Math.tan(fovH * Math.PI / 360), bZ = maxR * Math.tan(fovV * Math.PI / 360), pts = [];
+  for (let i = 0; i <= seg; i++) { const t = i / seg * 2 * Math.PI; pts.push(new THREE.Vector3(maxR, aY * Math.cos(t), bZ * Math.sin(t))); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color }));
+}
+function setFace(s, face) {
+  const { b, bp } = robotExtents();
+  s.face = face; s.pitch = 0;
+  if (face === 'front') { s.x = b.max.x - bp.x; s.y = 0; s.yaw = 0; }
+  else if (face === 'rear') { s.x = b.min.x - bp.x; s.y = 0; s.yaw = 180; }
+  else if (face === 'left') { s.y = b.max.y - bp.y; s.x = 0; s.yaw = 90; }
+  else { s.y = b.min.y - bp.y; s.x = 0; s.yaw = -90; }
+  s.z = 0.30 - bp.z;
+}
+function sensorName(s) {
+  const idx = sensors.filter(x => x.face === s.face && x.id <= s.id).length - 1;
+  return `ultrasonic_${s.face}_${idx}`;
+}
+function applySensorTransform(s) {
+  if (!s.holder) return;
+  s.holder.position.set(s.x, s.y, s.z);
+  s.holder.rotation.set(0, s.pitch * Math.PI / 180, s.yaw * Math.PI / 180, 'ZYX');
+}
+function rebuildSensor(s) {
+  if (s.holder && s.holder.parent) s.holder.parent.remove(s.holder);
+  const parent = robot.links[s.parentLink] || robot;
+  const holder = new THREE.Group();
+  const cone = new THREE.Mesh(coneGeometry(s.fovH, s.fovV, s.maxRange),
+    new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false }));
+  holder.add(cone);
+  holder.add(rimLine(s.fovH, s.fovV, s.maxRange, s.color));
+  holder.add(new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), new THREE.MeshBasicMaterial({ color: s.color })));
+  holder.traverse(o => o.userData.sensorPart = true); // 스윕/bbox 계산에서 제외
+  parent.add(holder);
+  s.holder = holder;
+  applySensorTransform(s);
+  scheduleDetect();
+}
+function addSensor() {
+  if (!robot) { setStatus('로봇 로드 후 센서 추가 가능', 'err'); return; }
+  const id = ++sensorSeq;
+  const s = { id, parentLink: 'base_link', face: 'front', x: 0, y: 0, z: 0, yaw: 0, pitch: 0,
+    fovH: 60, fovV: 30, minRange: 0.02, maxRange: 1.5, updateRate: 20,
+    color: PALETTE[(id - 1) % PALETTE.length], holder: null, measured: null };
+  setFace(s, 'front');
+  sensors.push(s);
+  s.name = sensorName(s);
+  rebuildSensor(s);
+  selectSensor(id);
+}
+function selectSensor(id) { selSensor = id; renderSenList(); buildSenEdit(); }
+function renderSenList() {
+  const list = document.getElementById('senList');
+  list.innerHTML = '';
+  if (!sensors.length) { list.innerHTML = '<div class="note">없음</div>'; return; }
+  for (const s of sensors) {
+    const chip = document.createElement('button');
+    chip.className = 'btn';
+    chip.style.cssText = 'width:auto;padding:3px 9px;font-size:11px;margin:0;border-left:3px solid #' + s.color.toString(16).padStart(6, '0') + ';' +
+      (s.id === selSensor ? 'border-color:var(--accent);color:var(--accent-ink);' : '');
+    chip.textContent = s.name;
+    chip.onclick = () => selectSensor(s.id);
+    list.appendChild(chip);
+  }
+}
+function buildSenEdit() {
+  const box = document.getElementById('senEdit');
+  const s = sensors.find(x => x.id === selSensor);
+  if (!s) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const linkOpts = Object.keys(robot.links).map(n => `<option ${n === s.parentLink ? 'selected' : ''}>${n}</option>`).join('');
+  box.innerHTML =
+    `<div class="note" style="margin-bottom:6px;">이름 <b style="color:var(--ink)">${s.name}</b><br>frame: ${s.name}_link · topic: /${s.name}</div>` +
+    `<div class="row"><label>부모 링크</label><select id="sParent" style="flex:1;min-width:0;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px;">${linkOpts}</select></div>` +
+    `<div class="row"><label>장착면</label><span>` +
+      ['front', 'rear', 'left', 'right'].map(f => `<button class="btn sface" data-f="${f}" style="width:auto;padding:2px 6px;font-size:10px;margin:0 2px 0 0;${f === s.face ? 'border-color:var(--accent);color:var(--accent-ink);' : ''}">${f}</button>`).join('') +
+    `</span></div>` +
+    sl('위치 X(전방)', 'sx', -1.5, 1.5, 0.01, s.x, ' m') +
+    sl('위치 Y(좌+)', 'sy', -1.5, 1.5, 0.01, s.y, ' m') +
+    sl('위치 Z', 'sz', 0, 2, 0.01, s.z, ' m') +
+    sl('Yaw', 'syaw', -180, 180, 1, s.yaw, '°') +
+    sl('Pitch(상+)', 'spitch', -90, 90, 1, s.pitch, '°') +
+    sl('수평 FOV φ', 'sfh', 5, 120, 1, s.fovH, '°') +
+    sl('수직 FOV θ', 'sfv', 5, 90, 1, s.fovV, '°') +
+    sl('min range', 'smin', 0, 1, 0.01, s.minRange, ' m') +
+    sl('max range', 'smax', 0.1, 6, 0.05, s.maxRange, ' m') +
+    sl('update rate', 'srate', 1, 50, 1, s.updateRate, ' Hz') +
+    `<div class="row"><label>측정 거리</label><span class="v" id="senMeasured">—</span></div>` +
+    `<button class="btn" id="senDel" style="margin-top:8px;border-color:#5a2a26;color:#f0776a;">센서 삭제</button>`;
+  document.getElementById('sParent').onchange = e => { s.parentLink = e.target.value; rebuildSensor(s); };
+  box.querySelectorAll('.sface').forEach(btn => btn.onclick = () => { setFace(s, btn.dataset.f); s.name = sensorName(s); rebuildSensor(s); buildSenEdit(); });
+  const bindS = (id, key, fix, unit, geo) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      s[key] = +el.value;
+      document.getElementById(id + 'v').textContent = (+el.value).toFixed(fix) + unit;
+      if (geo) rebuildSensor(s); else { applySensorTransform(s); scheduleDetect(); }
+    });
+  };
+  bindS('sx', 'x', 2, ' m', false); bindS('sy', 'y', 2, ' m', false); bindS('sz', 'z', 2, ' m', false);
+  bindS('syaw', 'yaw', 0, '°', false); bindS('spitch', 'pitch', 0, '°', false);
+  bindS('sfh', 'fovH', 0, '°', true); bindS('sfv', 'fovV', 0, '°', true);
+  bindS('smin', 'minRange', 2, ' m', true); bindS('smax', 'maxRange', 2, ' m', true);
+  bindS('srate', 'updateRate', 0, ' Hz', false);
+  document.getElementById('senDel').onclick = () => {
+    if (s.holder && s.holder.parent) s.holder.parent.remove(s.holder);
+    sensors.splice(sensors.indexOf(s), 1);
+    selSensor = sensors.length ? sensors[sensors.length - 1].id : null;
+    renderSenList(); buildSenEdit(); scheduleDetect();
+  };
+}
+document.getElementById('addSensor').onclick = addSensor;
+renderSenList();
+
+// 최근접 반사체 감지
+const raycaster = new THREE.Raycaster();
+const detectionGroup = new THREE.Group();
+scene.add(detectionGroup);
+function runDetections() {
+  detectionGroup.clear();
+  if (!robot) return;
+  robot.updateMatrixWorld(true);
+  const nA = 7, nB = 7;
+  for (const s of sensors) {
+    if (!s.holder) { s.measured = null; continue; }
+    s.holder.updateWorldMatrix(true, false);
+    const apex = new THREE.Vector3().setFromMatrixPosition(s.holder.matrixWorld);
+    const q = new THREE.Quaternion(); s.holder.getWorldQuaternion(q);
+    let best = Infinity, bestPt = null;
+    for (let ia = 0; ia < nA; ia++) {
+      const a = (-s.fovH / 2 + s.fovH * ia / (nA - 1)) * Math.PI / 180;
+      for (let ib = 0; ib < nB; ib++) {
+        const bb = (-s.fovV / 2 + s.fovV * ib / (nB - 1)) * Math.PI / 180;
+        const d = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, bb, a, 'ZYX')).applyQuaternion(q).normalize();
+        raycaster.set(apex, d); raycaster.near = 0.001; raycaster.far = s.maxRange;
+        const hits = raycaster.intersectObjects(raycastTargets, false);
+        if (hits.length && hits[0].distance >= s.minRange && hits[0].distance < best) {
+          best = hits[0].distance; bestPt = hits[0].point.clone();
+        }
+      }
+    }
+    s.measured = isFinite(best) ? best : null;
+    if (bestPt) {
+      const mk = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), new THREE.MeshBasicMaterial({ color: s.color }));
+      mk.position.copy(bestPt); detectionGroup.add(mk);
+      detectionGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([apex, bestPt]),
+        new THREE.LineBasicMaterial({ color: s.color })));
+    }
+  }
+  if (selSensor != null) {
+    const el = document.getElementById('senMeasured');
+    if (el) { const s = sensors.find(x => x.id === selSensor); el.textContent = s && s.measured != null ? `${s.measured.toFixed(3)} m (${Math.round(s.measured * 100)} cm)` : '미검출'; }
+  }
+}
+
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -444,6 +645,7 @@ resize();
 (function loop() {
   requestAnimationFrame(loop);
   controls.update();
+  if (detectDirty) { runDetections(); detectDirty = false; }
   renderer.render(scene, camera);
 })();
 </script>
