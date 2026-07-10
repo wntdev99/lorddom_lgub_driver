@@ -1,0 +1,1111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="mW2.0">
+  <link
+    name="base_footprint">
+  </link>
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.0640856998921466 -0.00143078365990245 0.383153848241273"
+        rpy="0 0 0" />
+      <mass
+        value="11.4286720265163" />
+      <inertia
+        ixx="0.406994446819738"
+        ixy="-0.0011120560716288"
+        ixz="-0.000257242908680934"
+        iyy="0.446259909127542"
+        iyz="-0.00102097407993443"
+        izz="0.247317585265356" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="base_link_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.234"
+      rpy="0 0 0" />
+    <parent
+      link="base_footprint" />
+    <child
+      link="base_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="steering_RH_link">
+    <inertial>
+      <origin
+        xyz="0.00203418406743905 -0.00346373777192316 -0.121430246082054"
+        rpy="0 0 0" />
+      <mass
+        value="1.35814570500451" />
+      <inertia
+        ixx="0.00251671592984283"
+        ixy="-9.03641590988549E-05"
+        ixz="9.52872149042791E-06"
+        iyy="0.00366475647251522"
+        iyz="-2.66995089720348E-05"
+        izz="0.00269285533949991" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_RH_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_RH_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="steering_RH"
+    type="continuous">
+    <origin
+      xyz="0.247499999999999 -0.160000000000001 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="steering_RH_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="steering_RT_link">
+    <inertial>
+      <origin
+        xyz="0.00596164657108691 -0.010216033112131 -0.0820148384777897"
+        rpy="0 0 0" />
+      <mass
+        value="0.557339534947653" />
+      <inertia
+        ixx="0.000901656894753119"
+        ixy="-9.03641590988548E-05"
+        ixz="9.52872149042785E-06"
+        iyy="0.000561156762854681"
+        iyz="-2.66995089720341E-05"
+        izz="0.000987821329777326" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_RT_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_RT_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="steering_RT"
+    type="continuous">
+    <origin
+      xyz="-0.2475 -0.159999999999999 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="steering_RT_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="wheel_RT_link">
+    <inertial>
+      <origin
+        xyz="-3.87009218161261E-06 0.00038567230495562 8.545040606453E-05"
+        rpy="0 0 0" />
+      <mass
+        value="2.80940567927834" />
+      <inertia
+        ixx="0.00466646967068658"
+        ixy="-2.16596402977334E-07"
+        ixz="-9.51999505091745E-08"
+        iyy="0.008768855031533"
+        iyz="3.77819070089506E-08"
+        izz="0.00466605315633099" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/wheel_RT_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/wheel_RT_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel_RT"
+    type="continuous">
+    <origin
+      xyz="0 0 -0.149"
+      rpy="0 0 0" />
+    <parent
+      link="steering_RT_link" />
+    <child
+      link="wheel_RT_link" />
+    <axis
+      xyz="0 -1 0" />
+  </joint>
+  <link
+    name="steering_LH_link">
+    <inertial>
+      <origin
+        xyz="-0.00596164657108664 0.0102160331121309 -0.0820148384777896"
+        rpy="0 0 0" />
+      <mass
+        value="0.557339534947653" />
+      <inertia
+        ixx="0.000901656894753119"
+        ixy="-9.03641590988547E-05"
+        ixz="-9.52872149042792E-06"
+        iyy="0.000561156762854681"
+        iyz="2.66995089720343E-05"
+        izz="0.000987821329777326" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_LH_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_LH_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="steering_LH"
+    type="continuous">
+    <origin
+      xyz="0.2475 0.16 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="steering_LH_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="wheel_LH_link">
+    <inertial>
+      <origin
+        xyz="8.28631846394312E-05 -0.000385672336530862 2.12225142488254E-05"
+        rpy="0 0 0" />
+      <mass
+        value="2.8094056761018" />
+      <inertia
+        ixx="0.00466616811137591"
+        ixy="-9.92895271473825E-08"
+        ixz="-1.82808475219523E-07"
+        iyy="0.00876885504027036"
+        iyz="1.96057347461174E-07"
+        izz="0.00466635472130234" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/wheel_LH_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/wheel_LH_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="wheel_LH"
+    type="continuous">
+    <origin
+      xyz="0 0 -0.149000000000001"
+      rpy="0 0 0" />
+    <parent
+      link="steering_LH_link" />
+    <child
+      link="wheel_LH_link" />
+    <axis
+      xyz="0 1 0" />
+  </joint>
+  <link
+    name="steering_LT_link">
+    <inertial>
+      <origin
+        xyz="-0.00203418406743894 0.0034637377719231 -0.121430246082054"
+        rpy="0 0 0" />
+      <mass
+        value="1.35814570500451" />
+      <inertia
+        ixx="0.00251671592984283"
+        ixy="-9.03641590988549E-05"
+        ixz="-9.5287214904279E-06"
+        iyy="0.00366475647251522"
+        iyz="2.66995089720343E-05"
+        izz="0.00269285533949991" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_LT_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/steering_LT_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="steering_LT"
+    type="continuous">
+    <origin
+      xyz="-0.2475 0.16 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="steering_LT_link" />
+    <axis
+      xyz="0 0 1" />
+  </joint>
+  <link
+    name="door_S1_link">
+    <inertial>
+      <origin
+        xyz="-0.243860155647212 -0.00352657560280323 0.15881902757319"
+        rpy="0 0 0" />
+      <mass
+        value="1.28982334800444" />
+      <inertia
+        ixx="0.0153742478121613"
+        ixy="-0.000101721182592282"
+        ixz="-5.18897267260776E-05"
+        iyy="0.0478485867979078"
+        iyz="1.93033272402667E-08"
+        izz="0.0325347194916541" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/door_S1_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/door_S1_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="door_S1"
+    type="revolute">
+    <origin
+      xyz="0.1845 -0.248 0.256"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="door_S1_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="door_S2_link">
+    <inertial>
+      <origin
+        xyz="-0.241755625370273 -0.0033735595825107 0.134088684567986"
+        rpy="0 0 0" />
+      <mass
+        value="1.14705653331752" />
+      <inertia
+        ixx="0.0100768900825933"
+        ixy="-8.67829661710261E-05"
+        ixz="5.69109354662091E-05"
+        iyy="0.0385464766938008"
+        iyz="2.69665310329639E-07"
+        izz="0.0285270350718312" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/door_S2_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/door_S2_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="door_S2"
+    type="fixed">
+    <origin
+      xyz="0.1845 -0.248 0.632"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="door_S2_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="bottom_view_right_camera_link">
+    <inertial>
+      <origin
+        xyz="0.00485400265905467 -0.000262101754546565 0.0123138718468591"
+        rpy="0 0 0" />
+      <mass
+        value="0.134903813355519" />
+      <inertia
+        ixx="9.22589366550612E-05"
+        ixy="-1.28049287847877E-07"
+        ixz="-1.08082385829495E-07"
+        iyy="1.58461316539026E-05"
+        iyz="3.69249040250902E-08"
+        izz="9.3328072773605E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/camera_BR_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/camera_BR_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_BR"
+    type="fixed">
+    <origin
+      xyz="-0.237 -0.027347 0.29035"
+      rpy="-3.1416 1.0123 -1.5708" />
+    <parent
+      link="door_S2_link" />
+    <child
+      link="bottom_view_right_camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="linear_arm_link">
+    <inertial>
+      <origin
+        xyz="-1.95719835502373E-05 -0.0314058118124348 -0.0360539640807816"
+        rpy="0 0 0" />
+      <mass
+        value="0.35710271436785" />
+      <inertia
+        ixx="0.000655690902123825"
+        ixy="-3.40314909515629E-06"
+        ixz="-6.04350045894137E-07"
+        iyy="0.000760255820486714"
+        iyz="-1.24470928584516E-07"
+        izz="0.000404167014278037" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_arm_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_arm_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="nero_joint0"
+    type="prismatic">
+    <origin
+      xyz="0.3 -0.115 0.281"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="linear_arm_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0.41"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="arm_base_link">
+  </link>
+  <joint
+    name="arm_base_joint"
+    type="fixed">
+    <origin
+      xyz="0.0025 -0.0790000000000001 -0.0974999999999999"
+      rpy="0 0 1.5707963267949" />
+    <parent
+      link="linear_arm_link" />
+    <child
+      link="arm_base_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="linear_Bdoor3_link">
+    <inertial>
+      <origin
+        xyz="-0.00940804754472863 -0.222943947655604 -0.157879615006396"
+        rpy="0 0 0" />
+      <mass
+        value="1.15786028630372" />
+      <inertia
+        ixx="0.034906298160503"
+        ixy="-1.25507137376276E-06"
+        ixz="1.3262313318473E-06"
+        iyy="0.0139296423886767"
+        iyz="4.34916460973514E-05"
+        izz="0.0210182522116593" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_Bdoor3_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_Bdoor3_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="linear_Bdoor3"
+    type="prismatic">
+    <origin
+      xyz="-0.444 0.223 0.8725"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="linear_Bdoor3_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.7405"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="linear_Bdoor2_link">
+    <inertial>
+      <origin
+        xyz="-0.00940863905080191 0.222940617199807 -0.157866817297292"
+        rpy="0 0 0" />
+      <mass
+        value="1.15797817051692" />
+      <inertia
+        ixx="0.034913455262129"
+        ixy="1.27736294878866E-06"
+        ixz="1.03878153901236E-06"
+        iyy="0.0139315273539723"
+        iyz="-4.29902804315397E-05"
+        izz="0.0210236007397691" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_Bdoor2_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/linear_Bdoor2_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="linear_Bdoor2"
+    type="prismatic">
+    <origin
+      xyz="-0.427 -0.223 0.499"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="linear_Bdoor2_link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.367"
+      upper="0.3735"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="laser_2D_link">
+    <inertial>
+      <origin
+        xyz="8.38868273867407E-05 8.9442797539141E-05 0.0157938668055873"
+        rpy="0 0 0" />
+      <mass
+        value="0.126262032749643" />
+      <inertia
+        ixx="4.22778662093355E-05"
+        ixy="9.44204307214081E-09"
+        ixz="-6.29587321377712E-08"
+        iyy="4.20551756002344E-05"
+        iyz="-1.63902297009108E-08"
+        izz="7.65606915703214E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/laser_2D_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/laser_2D_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="laser_2D"
+    type="fixed">
+    <origin
+      xyz="-0.29925 -0.046749999999998 0.0998000000000001"
+      rpy="0 0 -1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="laser_2D_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="laser_3D_link">
+    <inertial>
+      <origin
+        xyz="-0.221682816773943 0.224542558495678 -0.671041289522887"
+        rpy="0 0 0" />
+      <mass
+        value="51.6558928639202" />
+      <inertia
+        ixx="9.88088517120351"
+        ixy="-0.0189513728688154"
+        ixz="0.101174140835482"
+        iyy="7.56736914925269"
+        iyz="0.119957529708614"
+        izz="5.34398155206921" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/laser_3D_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/laser_3D_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="laser_3D"
+    type="fixed">
+    <origin
+      xyz="0.25025 0.1995 0.94214990862401"
+      rpy="0 0 1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="laser_3D_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="imu_link">
+    <inertial>
+      <origin
+        xyz="0.005 0 0"
+        rpy="0 0 0" />
+      <mass
+        value="0.001" />
+      <inertia
+        ixx="1.66666666666667E-08"
+        ixy="-4.06893452037285E-25"
+        ixz="-4.386962273191E-41"
+        iyy="1.66666666666667E-08"
+        iyz="-8.86067048906936E-25"
+        izz="1.66666666666667E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/imu_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://w_type_mw/meshes/imu_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="imu"
+    type="fixed">
+    <origin
+      xyz="0.2925 0.21175 0.565"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="imu_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="bottom_view_middle_camera_link">
+    <inertial>
+      <origin
+        xyz="0.0227620988636504 0.000186129393915269 -0.0110160044381445"
+        rpy="0 0 0" />
+      <mass
+        value="0.134903907658953" />
+      <inertia
+        ixx="1.58461523377723E-05"
+        ixy="3.69259654978901E-08"
+        ixz="1.28043033463883E-07"
+        iyy="9.33280835454191E-05"
+        iyz="1.08086048392569E-07"
+        izz="9.22589549057799E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BH_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BH_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_BH"
+    type="fixed">
+    <origin
+      xyz="0.402283255454933 -0.0225 0.755981297380178"
+      rpy="-3.141593 0.977384 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="bottom_view_middle_camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="bottom_view_rear_camera_link">
+    <inertial>
+      <origin
+        xyz="0.02276206290179 0.000186136224758382 -0.0110160105497843"
+        rpy="0 0 0" />
+      <mass
+        value="0.134904052500858" />
+      <inertia
+        ixx="1.58455972251804E-05"
+        ixy="3.67673588894174E-08"
+        ixz="1.28142443850385E-07"
+        iyy="9.3328737759491E-05"
+        iyz="1.08223553791391E-07"
+        izz="9.22590010349361E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BT_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BT_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_BT"
+    type="fixed">
+    <origin
+      xyz="-0.471156019439288 -0.0224999999999998 0.920894494081146"
+      rpy="0 1.012291 3.141593" />
+    <parent
+      link="base_link" />
+    <child
+      link="bottom_view_rear_camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="bottom_view_left_camera_link">
+    <inertial>
+      <origin
+        xyz="0.0227620630554244 0.000186136240405865 -0.0110160105778864"
+        rpy="0 0 0" />
+      <mass
+        value="0.134904053181834" />
+      <inertia
+        ixx="1.58455972349151E-05"
+        ixy="3.67673184651638E-08"
+        ixz="1.28142462271114E-07"
+        iyy="9.3328738112938E-05"
+        iyz="1.08223559184294E-07"
+        izz="9.22590013880101E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BL_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_BL_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_BL"
+    type="fixed">
+    <origin
+      xyz="-0.074 0.267656019439287 0.904269624729236"
+      rpy="0 1.012291 1.570796" />
+    <parent
+      link="base_link" />
+    <child
+      link="bottom_view_left_camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="front_view_middle_camera_link">
+    <inertial>
+      <origin
+        xyz="0.0227620931029722 0.000186127462097396 -0.011015987421657"
+        rpy="0 0 0" />
+      <mass
+        value="0.134903340495701" />
+      <inertia
+        ixx="1.58459933074437E-05"
+        ixy="3.68874049615849E-08"
+        ixz="1.28117596747135E-07"
+        iyy="9.33279961291624E-05"
+        iyz="1.0807181096845E-07"
+        izz="9.22587056505991E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_FH_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.698039215686274 0.698039215686274 0.698039215686274 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://260616_mW2.0 Full Assy_URDF-R1/meshes/camera_FH_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="camera_FH"
+    type="fixed">
+    <origin
+      xyz="0.336576134462624 -0.0225000000000044 0.202088855390884"
+      rpy="3.141593 -0.174533 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="front_view_middle_camera_link" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

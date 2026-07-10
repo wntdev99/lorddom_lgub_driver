@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>초음파 센서 배치 시뮬레이터 — mW2.0</title>
+<style>
+  :root {
+    --bg: #10141c;
+    --panel: #171d28;
+    --panel-2: #1e2634;
+    --line: #2a3341;
+    --ink: #e6ebf2;
+    --ink-soft: #9aa7b8;
+    --ink-faint: #5f6d80;
+    --accent: #2bb7c4;
+    --accent-ink: #6fd8e2;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 13px; }
+
+  #app { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+  #viewport { position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  #hud {
+    position: absolute; top: 12px; left: 12px; z-index: 5;
+    background: rgba(16,20,28,.72); backdrop-filter: blur(6px);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px;
+    pointer-events: none; max-width: 60%;
+  }
+  #hud .title { font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+  #hud .sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  #hud .coord { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-top: 6px; }
+
+  #status {
+    position: absolute; bottom: 12px; left: 12px; z-index: 5;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-soft);
+    background: rgba(16,20,28,.72); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  #status.err { color: #f0776a; border-color: #5a2a26; }
+  #status.ok { color: #3fc394; }
+
+  #controls-hint {
+    position: absolute; bottom: 12px; right: 332px; z-index: 5;
+    font-size: 10px; color: var(--ink-faint); text-align: right;
+    background: rgba(16,20,28,.6); border-radius: 6px; padding: 4px 8px;
+  }
+
+  #panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; }
+  .p-sec { border-bottom: 1px solid var(--line); padding: 14px 16px; }
+  .p-h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 10px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .row label { font-size: 12px; color: var(--ink-soft); flex-shrink: 0; }
+  .row .v { font-family: var(--mono); font-size: 11px; color: var(--accent-ink); }
+  input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .jointlist { display: flex; flex-direction: column; gap: 9px; }
+  .jrow label { font-size: 11px; color: var(--ink-soft); display: flex; justify-content: space-between; }
+  .jrow label .jv { font-family: var(--mono); color: var(--accent-ink); }
+  .jrow input { width: 100%; accent-color: var(--accent); }
+  .btn {
+    width: 100%; padding: 7px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--ink); font-family: var(--sans); font-size: 12px;
+    cursor: pointer; margin-top: 4px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .note { font-size: 11px; color: var(--ink-faint); line-height: 1.5; }
+  .milestone { font-size: 10px; color: var(--ink-faint); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="viewport">
+    <div id="hud">
+      <div class="title">초음파 센서 배치 시뮬레이터</div>
+      <div class="sub" id="robotName">로봇 로딩 중…</div>
+      <div class="coord">좌표계: X 전방 · Y 좌 · Z 상 (ROS REP-103) &nbsp;|&nbsp; 1 grid = 0.5 m</div>
+    </div>
+    <div id="status">초기화…</div>
+    <div id="controls-hint">좌드래그: 회전 · 휠: 줌 · 우드래그/Shift: 이동</div>
+  </div>
+
+  <div id="panel">
+    <div class="p-sec">
+      <div class="p-h">뷰</div>
+      <div class="row"><label>표시</label>
+        <select id="displayMode" style="flex:1;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px;">
+          <option value="visual">Visual mesh</option>
+          <option value="collision">Collision</option>
+        </select>
+      </div>
+      <button class="btn" id="btnFit">시점 리셋 (자동 맞춤)</button>
+      <div class="row" style="margin-top:8px;"><label>그리드</label><input type="checkbox" id="tglGrid" checked></div>
+      <div class="row"><label>월드 좌표축</label><input type="checkbox" id="tglAxes" checked></div>
+    </div>
+
+    <div class="p-sec">
+      <div class="p-h">관절 (URDF)</div>
+      <div class="jointlist" id="jointlist"><div class="note">로딩 중…</div></div>
+      <button class="btn" id="btnZeroJoints">모든 관절 0으로</button>
+    </div>
+
+    <div class="p-sec">
+      <div class="p-h">진행 상태</div>
+      <div class="milestone">
+        ✅ M1 — 3D 뷰 + URDF 로딩<br>
+        ⬜ M2 — 통로·장애물<br>
+        ⬜ M3 — 초음파 센서 배치<br>
+        ⬜ M4 — nav2 costmap<br>
+        ⬜ M5 — 커버리지/간섭<br>
+        ⬜ M6 — URDF 내보내기
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./lib/three.module.js",
+    "three/examples/jsm/loaders/STLLoader.js": "./lib/STLLoader.js",
+    "three/examples/jsm/loaders/ColladaLoader.js": "./lib/ColladaLoader.js",
+    "three/examples/jsm/loaders/TGALoader.js": "./lib/TGALoader.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './lib/OrbitControls.js';
+import URDFLoader from './lib/URDFLoader.js';
+
+const statusEl = document.getElementById('status');
+function setStatus(msg, cls) { statusEl.textContent = msg; statusEl.className = cls || ''; }
+
+// ── 씬 (Z-up 월드, ROS 좌표계) ──────────────────────────────
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x10141c);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 100);
+camera.up.set(0, 0, 1);              // Z-up
+camera.position.set(2.2, -2.4, 1.8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+viewport.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0, 0.4);
+
+// 조명
+scene.add(new THREE.HemisphereLight(0xbcd0e6, 0x30343c, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(3, -2, 5);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xafc4dd, 0.5);
+fill.position.set(-3, 3, 2);
+scene.add(fill);
+
+// 그리드 (XY 평면) + 좌표축
+const grid = new THREE.GridHelper(10, 20, 0x3a4658, 0x232c38);
+grid.rotation.x = Math.PI / 2;       // XY 평면으로
+scene.add(grid);
+const axes = new THREE.AxesHelper(0.6); // X빨강 Y초록 Z파랑
+scene.add(axes);
+
+document.getElementById('tglGrid').addEventListener('change', e => grid.visible = e.target.checked);
+document.getElementById('tglAxes').addEventListener('change', e => axes.visible = e.target.checked);
+
+// ── URDF 로딩 ───────────────────────────────────────────────
+let robot = null;
+const manager = new THREE.LoadingManager();
+const loader = new URDFLoader(manager);
+// URDF가 두 패키지명을 혼용(w_type_mw + SolidWorks 원본 어셈블리명) — 둘 다 ./robot 로 매핑
+loader.packages = {
+  'w_type_mw': './robot',
+  '260616_mW2.0 Full Assy_URDF-R1': './robot',
+};
+
+setStatus('URDF 파싱·메시 로딩 중…');
+loader.load(
+  './robot/robot.urdf',
+  result => {
+    robot = result;
+    scene.add(robot);
+    document.getElementById('robotName').textContent =
+      `로봇: ${robot.robotName || 'mW2.0'} · 링크 ${Object.keys(robot.links).length} · 관절 ${Object.keys(robot.joints).length}`;
+    buildJointUI();
+    manager.onLoad = () => { fitView(); setStatus(`로딩 완료 (메시 포함)`, 'ok'); };
+    // 메시가 이미 캐시되어 onLoad가 안 뜨는 경우 대비
+    setTimeout(() => { if (statusEl.className !== 'ok') { fitView(); setStatus('로딩 완료', 'ok'); } }, 1200);
+  },
+  undefined,
+  err => setStatus('URDF 로딩 실패: ' + (err?.message || err), 'err')
+);
+
+// ── 관절 UI ─────────────────────────────────────────────────
+function buildJointUI() {
+  const list = document.getElementById('jointlist');
+  list.innerHTML = '';
+  const movable = Object.values(robot.joints).filter(j => j.jointType !== 'fixed');
+  if (!movable.length) { list.innerHTML = '<div class="note">가동 관절 없음</div>'; return; }
+  for (const j of movable) {
+    const isCont = j.jointType === 'continuous';
+    const lo = isCont ? -Math.PI : (j.limit.lower ?? -Math.PI);
+    const hi = isCont ? Math.PI : (j.limit.upper ?? Math.PI);
+    const wrap = document.createElement('div');
+    wrap.className = 'jrow';
+    const unit = j.jointType === 'prismatic' ? 'm' : 'rad';
+    wrap.innerHTML =
+      `<label>${j.name} <span class="jv" id="jv-${j.name}">0.00 ${unit}</span></label>
+       <input type="range" min="${lo}" max="${hi}" step="0.01" value="0" data-joint="${j.name}">`;
+    list.appendChild(wrap);
+    wrap.querySelector('input').addEventListener('input', e => {
+      const val = parseFloat(e.target.value);
+      robot.setJointValue(j.name, val);
+      document.getElementById('jv-' + j.name).textContent = val.toFixed(2) + ' ' + unit;
+    });
+  }
+}
+document.getElementById('btnZeroJoints').addEventListener('click', () => {
+  if (!robot) return;
+  for (const j of Object.values(robot.joints)) {
+    if (j.jointType !== 'fixed') robot.setJointValue(j.name, 0);
+  }
+  buildJointUI();
+});
+
+// ── 시점 자동 맞춤 ──────────────────────────────────────────
+function fitView() {
+  if (!robot) return;
+  const box = new THREE.Box3().setFromObject(robot);
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist = maxDim * 2.4;
+  controls.target.copy(center);
+  camera.position.set(center.x + dist * 0.7, center.y - dist * 0.8, center.z + dist * 0.6);
+  camera.near = maxDim / 100; camera.far = maxDim * 50;
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+document.getElementById('btnFit').addEventListener('click', fitView);
+
+// ── 렌더 루프 & 리사이즈 ────────────────────────────────────
+function resize() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+(function loop() {
+  requestAnimationFrame(loop);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
