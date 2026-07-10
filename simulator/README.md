@@ -51,7 +51,7 @@ simulator/
 - [x] **M3** — 다중 `ultrasonic` 센서 배치 (부모링크·6DOF·FOV·min/max_range, 콘 시각화, 최근접 반사 감지)
 - [x] **M4** — nav2 RangeSensorLayer costmap 재현 (5cm, γ·δ·4구간 sensor_model·정규화 베이즈, 감지 상세 리드아웃)
 - [x] **M5** — 커버리지/사각 맵 + 센서 간 간섭(crosstalk) 경고
-- [ ] **M6** — 기존 URDF에 센서 반영 내보내기
+- [x] **M6** — 기존 URDF에 센서 반영 내보내기 (link+fixed joint+gazebo/gpu_lidar, 복사/다운로드)
 
 ## 참고
 

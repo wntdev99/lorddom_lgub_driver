@@ -160,6 +160,12 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">내보내기</div>
+      <button class="btn" id="btnExport">센서 반영 URDF 내보내기</button>
+      <div class="note" style="margin-top:6px;">기존 URDF에 각 ultrasonic을 link + fixed joint + gazebo(gpu_lidar 콘)로 삽입해 출력.</div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">진행 상태</div>
       <div class="milestone">
         ✅ M1 — 3D 뷰 + URDF 로딩<br>
@@ -167,9 +173,24 @@
         ✅ M3 — 초음파 센서 배치<br>
         ✅ M4 — nav2 costmap<br>
         ✅ M5 — 커버리지/간섭<br>
-        ⬜ M6 — URDF 내보내기
+        ✅ M6 — URDF 내보내기
       </div>
     </div>
+  </div>
+</div>
+
+<div id="expModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+  <div style="width:min(880px,92vw);max-height:86vh;background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+      <b>센서 반영 URDF (robot_with_ultrasonic.urdf)</b>
+      <span style="display:flex;gap:6px;">
+        <button class="btn" id="expCopy" style="width:auto;padding:4px 12px;margin:0;">복사</button>
+        <button class="btn" id="expDl" style="width:auto;padding:4px 12px;margin:0;">다운로드</button>
+        <button class="btn" id="expClose" style="width:auto;padding:4px 12px;margin:0;">닫기</button>
+      </span>
+    </div>
+    <textarea id="expText" readonly spellcheck="false" style="flex:1;min-height:52vh;background:var(--bg);color:var(--ink);border:0;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.5;resize:none;outline:none;"></textarea>
+    <div class="note" style="padding:8px 16px;border-top:1px solid var(--line);">gz-sim(Harmonic)엔 네이티브 ultrasonic이 없어 <b>좁은 콘 gpu_lidar</b>로 모델링됨. <code>sensor_msgs/Range</code> 브리지 매핑은 2025-05 이후 ros_gz에만 있으니 <code>apt policy ros-jazzy-ros-gz-bridge</code>로 버전 확인 요망.</div>
   </div>
 </div>
 
@@ -846,6 +867,72 @@ function updateCoverage() {
   ro.innerHTML = html;
 }
 document.getElementById('covOn').addEventListener('change', e => { COV.enabled = e.target.checked; scheduleDetect(); });
+
+// ── M6: 센서 반영 URDF 내보내기 ─────────────────────────────
+// 부모 링크 기준 로컬 변환에서 URDF rpy(고정축 XYZ = Rz·Ry·Rx) 추출
+function matrixToRPY(m) {
+  const e = m.elements;
+  const r00 = e[0], r10 = e[1], r20 = e[2], r21 = e[6], r22 = e[10];
+  return { roll: Math.atan2(r21, r22), pitch: Math.atan2(-r20, Math.hypot(r00, r10)), yaw: Math.atan2(r10, r00) };
+}
+function buildSensorXML(s) {
+  s.holder.updateMatrix();                 // 부모(parentLink) 기준 로컬 변환
+  const { roll, pitch, yaw } = matrixToRPY(s.holder.matrix);
+  const p = s.holder.position;
+  const f = n => (+n).toFixed(6);
+  const halfA = s.fovH * Math.PI / 360;     // φ/2 (rad)
+  return `  <!-- ${s.name} (ultrasonic → gpu_lidar 콘 근사) -->
+  <link name="${s.name}_link">
+    <visual>
+      <geometry><box size="0.02 0.02 0.02"/></geometry>
+      <material name="${s.name}_mat"><color rgba="0.17 0.72 0.77 1"/></material>
+    </visual>
+  </link>
+  <joint name="${s.name}_joint" type="fixed">
+    <parent link="${s.parentLink}"/>
+    <child link="${s.name}_link"/>
+    <origin xyz="${f(p.x)} ${f(p.y)} ${f(p.z)}" rpy="${f(roll)} ${f(pitch)} ${f(yaw)}"/>
+  </joint>
+  <gazebo reference="${s.name}_link">
+    <sensor name="${s.name}" type="gpu_lidar">
+      <update_rate>${f(s.updateRate)}</update_rate>
+      <topic>${s.name}</topic>
+      <gz_frame_id>${s.name}_link</gz_frame_id>
+      <always_on>1</always_on>
+      <visualize>true</visualize>
+      <ray>
+        <scan>
+          <horizontal><samples>10</samples><resolution>1</resolution><min_angle>${f(-halfA)}</min_angle><max_angle>${f(halfA)}</max_angle></horizontal>
+          <vertical><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></vertical>
+        </scan>
+        <range><min>${f(s.minRange)}</min><max>${f(s.maxRange)}</max><resolution>0.01</resolution></range>
+      </ray>
+    </sensor>
+  </gazebo>
+`;
+}
+async function exportURDF() {
+  if (!sensors.length) { alert('추가된 센서가 없습니다.'); return; }
+  let base;
+  try { base = await fetch('./robot/robot.urdf').then(r => r.text()); }
+  catch (e) { alert('원본 URDF를 불러오지 못했습니다: ' + e.message); return; }
+  const inject = sensors.map(buildSensorXML).join('\n');
+  const out = base.replace(/<\/robot>\s*$/, inject + '\n</robot>\n');
+  document.getElementById('expText').value = out;
+  document.getElementById('expModal').style.display = 'flex';
+}
+document.getElementById('btnExport').addEventListener('click', exportURDF);
+document.getElementById('expClose').addEventListener('click', () => document.getElementById('expModal').style.display = 'none');
+document.getElementById('expCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(document.getElementById('expText').value); setStatus('URDF 클립보드 복사됨', 'ok'); }
+  catch { document.getElementById('expText').select(); document.execCommand('copy'); }
+});
+document.getElementById('expDl').addEventListener('click', () => {
+  const blob = new Blob([document.getElementById('expText').value], { type: 'text/xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'robot_with_ultrasonic.urdf';
+  a.click(); URL.revokeObjectURL(a.href);
+});
 
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
