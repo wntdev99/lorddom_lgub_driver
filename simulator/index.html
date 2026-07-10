@@ -146,6 +146,13 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">커버리지 / 간섭</div>
+      <div class="row"><label>커버리지 표시</label><input type="checkbox" id="covOn"></div>
+      <div class="note">초록 = 1개 이상 감지 영역 · 주황 = 2개 이상 겹침(간섭 위험). 빈 곳 = 사각지대.</div>
+      <div id="xtalkReadout" class="note" style="margin-top:8px;line-height:1.7;"></div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">제자리 선회 스윕</div>
       <div class="row"><label>표시</label><input type="checkbox" id="sweepOn"></div>
       <div class="row"><label>선회 반경 R</label><span class="v" id="sweepR">— m</span></div>
@@ -159,7 +166,7 @@
         ✅ M2 — 통로·장애물·선회 스윕<br>
         ✅ M3 — 초음파 센서 배치<br>
         ✅ M4 — nav2 costmap<br>
-        ⬜ M5 — 커버리지/간섭<br>
+        ✅ M5 — 커버리지/간섭<br>
         ⬜ M6 — URDF 내보내기
       </div>
     </div>
@@ -583,7 +590,7 @@ function buildSenEdit() {
     `<div class="row"><label>측정 거리</label><span class="v" id="senMeasured">—</span></div>` +
     `<button class="btn" id="senDel" style="margin-top:8px;border-color:#5a2a26;color:#f0776a;">센서 삭제</button>`;
   document.getElementById('sParent').onchange = e => { s.parentLink = e.target.value; rebuildSensor(s); };
-  box.querySelectorAll('.sface').forEach(btn => btn.onclick = () => { setFace(s, btn.dataset.f); s.name = sensorName(s); rebuildSensor(s); buildSenEdit(); });
+  box.querySelectorAll('.sface').forEach(btn => btn.onclick = () => { setFace(s, btn.dataset.f); s.name = sensorName(s); rebuildSensor(s); renderSenList(); buildSenEdit(); });
   const bindS = (id, key, fix, unit, geo) => {
     const el = document.getElementById(id);
     el.addEventListener('input', () => {
@@ -647,6 +654,7 @@ function runDetections() {
     if (el) { const s = sensors.find(x => x.id === selSensor); el.textContent = s && s.measured != null ? `${s.measured.toFixed(3)} m (${Math.round(s.measured * 100)} cm)` : '미검출'; }
   }
   updateCostmap();
+  updateCoverage();
 }
 
 // ── M4: nav2 RangeSensorLayer costmap 재현 ──────────────────
@@ -769,6 +777,75 @@ function cmSlider(id, key, fix) {
   el.addEventListener('input', () => { CM[key] = +el.value; document.getElementById(id + 'v').textContent = (+el.value).toFixed(fix); scheduleDetect(); });
 }
 cmSlider('cmPhiV', 'phiV', 2); cmSlider('cmMark', 'mark', 2); cmSlider('cmClear', 'clear', 2);
+
+// ── M5: 커버리지 / 사각 맵 + 센서 간 간섭(crosstalk) ─────────
+const COV_RES = 0.10;
+const COV = { enabled: false };
+const coverageGroup = new THREE.Group();
+scene.add(coverageGroup);
+function computeCoverage() {
+  const active = sensors.filter(s => s.holder);
+  if (!active.length) return null;
+  const q = new THREE.Quaternion();
+  const info = active.map(s => {
+    s.holder.updateWorldMatrix(true, false);
+    const apex = new THREE.Vector3().setFromMatrixPosition(s.holder.matrixWorld);
+    const dir = new THREE.Vector3(1, 0, 0).applyQuaternion(s.holder.getWorldQuaternion(q));
+    return { s, ax: apex.x, ay: apex.y, H: Math.atan2(dir.y, dir.x), maxA: s.fovH * Math.PI / 360, minR: s.minRange, maxR: s.maxRange };
+  });
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const it of info) { minX = Math.min(minX, it.ax - it.maxR); maxX = Math.max(maxX, it.ax + it.maxR); minY = Math.min(minY, it.ay - it.maxR); maxY = Math.max(maxY, it.ay + it.maxR); }
+  const nx = Math.min(400, Math.ceil((maxX - minX) / COV_RES)), ny = Math.min(400, Math.ceil((maxY - minY) / COV_RES));
+  const cells = [], pair = {};
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+    const cx = minX + (i + 0.5) * COV_RES, cy = minY + (j + 0.5) * COV_RES;
+    const cov = [];
+    for (let k = 0; k < info.length; k++) {
+      const it = info[k], dx = cx - it.ax, dy = cy - it.ay, d = Math.hypot(dx, dy);
+      if (d < it.minR || d > it.maxR) continue;
+      let a = Math.atan2(dy, dx) - it.H;
+      while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI;
+      if (Math.abs(a) <= it.maxA) cov.push(k);
+    }
+    if (cov.length) {
+      cells.push({ i, j, c: cov.length });
+      for (let a = 0; a < cov.length; a++) for (let b = a + 1; b < cov.length; b++) { const key = cov[a] + '-' + cov[b]; pair[key] = (pair[key] || 0) + 1; }
+    }
+  }
+  return { cells, nx, ny, minX, minY, pair, info };
+}
+function renderCoverage(cv) {
+  coverageGroup.clear();
+  if (!cv || !cv.cells.length) return;
+  const geo = new THREE.PlaneGeometry(COV_RES * 0.92, COV_RES * 0.92);
+  const inst = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.38, side: THREE.DoubleSide }), cv.cells.length);
+  const m = new THREE.Matrix4(), col = new THREE.Color();
+  cv.cells.forEach((c, k) => {
+    m.makeTranslation(cv.minX + (c.i + 0.5) * COV_RES, cv.minY + (c.j + 0.5) * COV_RES, 0.015);
+    inst.setMatrixAt(k, m); inst.setColorAt(k, col.setHex(c.c >= 2 ? 0xe0aa54 : 0x2e9e5b));
+  });
+  inst.instanceMatrix.needsUpdate = true;
+  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+  coverageGroup.add(inst);
+}
+function updateCoverage() {
+  const ro = document.getElementById('xtalkReadout');
+  if (!COV.enabled) { coverageGroup.clear(); if (ro) ro.textContent = ''; return; }
+  const cv = computeCoverage();
+  renderCoverage(cv);
+  if (!ro) return;
+  if (!cv) { ro.textContent = '센서를 추가하세요.'; return; }
+  const pairs = Object.entries(cv.pair).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  if (!pairs.length) { ro.innerHTML = '<b style="color:#3fc394">콘 겹침 없음 — 간섭 위험 낮음</b>'; return; }
+  let html = '<b style="color:#e0aa54">⚠ 간섭 위험 쌍(콘 겹침):</b><br>';
+  for (const [key, cnt] of pairs) {
+    const [ia, ib] = key.split('-').map(Number);
+    const area = (cnt * COV_RES * COV_RES).toFixed(2);
+    html += `· ${cv.info[ia].s.name} ↔ ${cv.info[ib].s.name}: 겹침 ${cnt} px (${area} m²)<br>`;
+  }
+  ro.innerHTML = html;
+}
+document.getElementById('covOn').addEventListener('change', e => { COV.enabled = e.target.checked; scheduleDetect(); });
 
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
