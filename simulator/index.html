@@ -130,6 +130,22 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">nav2 Costmap (RangeSensorLayer)</div>
+      <div class="row"><label>표시</label><input type="checkbox" id="cmOn"></div>
+      <div class="row"><label>해상도</label><span class="v">5 cm / 셀</span></div>
+      <div class="row"><label>색상 모드</label>
+        <select id="cmMode" style="flex:1;min-width:0;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px;">
+          <option value="final">최종 3단계 마킹</option>
+          <option value="post">posterior 확률(히트맵)</option>
+        </select>
+      </div>
+      <div class="row"><label>phi_v</label><input type="range" id="cmPhiV" min="0.3" max="3" step="0.05" value="1.2"><span class="v" id="cmPhiVv">1.20</span></div>
+      <div class="row"><label>mark_thr</label><input type="range" id="cmMark" min="0.5" max="0.99" step="0.01" value="0.8"><span class="v" id="cmMarkv">0.80</span></div>
+      <div class="row"><label>clear_thr</label><input type="range" id="cmClear" min="0.01" max="0.5" step="0.01" value="0.2"><span class="v" id="cmClearv">0.20</span></div>
+      <div id="cmReadout" class="note" style="margin-top:8px;line-height:1.7;">센서를 배치하고 표시를 켜세요.</div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">제자리 선회 스윕</div>
       <div class="row"><label>표시</label><input type="checkbox" id="sweepOn"></div>
       <div class="row"><label>선회 반경 R</label><span class="v" id="sweepR">— m</span></div>
@@ -142,7 +158,7 @@
         ✅ M1 — 3D 뷰 + URDF 로딩<br>
         ✅ M2 — 통로·장애물·선회 스윕<br>
         ✅ M3 — 초음파 센서 배치<br>
-        ⬜ M4 — nav2 costmap<br>
+        ✅ M4 — nav2 costmap<br>
         ⬜ M5 — 커버리지/간섭<br>
         ⬜ M6 — URDF 내보내기
       </div>
@@ -630,7 +646,129 @@ function runDetections() {
     const el = document.getElementById('senMeasured');
     if (el) { const s = sensors.find(x => x.id === selSensor); el.textContent = s && s.measured != null ? `${s.measured.toFixed(3)} m (${Math.round(s.measured * 100)} cm)` : '미검출'; }
   }
+  updateCostmap();
 }
+
+// ── M4: nav2 RangeSensorLayer costmap 재현 ──────────────────
+// 근거: nav2_costmap_2d/plugins/range_sensor_layer.cpp (docs/simulator_spec.md §4)
+const RES = 0.05;                  // 5 cm/셀 (확정)
+const INFLATE_CONE = 1.0;          // 기본값(bbox 전체, gamma가 콘 밖 0 처리)
+const CM = { enabled: false, mode: 'final', phiV: 1.2, mark: 0.8, clear: 0.2 };
+const costmapGroup = new THREE.Group();
+scene.add(costmapGroup);
+let cmInst = null;
+
+function nav2Gamma(theta, maxA) { return Math.abs(theta) > maxA ? 0 : 1 - (theta / maxA) ** 2; }
+function nav2Delta(phi, phiV) { return 1 - (1 + Math.tanh(2 * (phi - phiV))) / 2; }
+function nav2SensorModel(r, phi, theta, maxA, phiV) {
+  const lbda = nav2Delta(phi, phiV) * nav2Gamma(theta, maxA);
+  const dr = RES;                  // nav2: double delta = resolution_
+  if (phi >= 0 && phi < r - 2 * dr * r) return (1 - lbda) * 0.5;
+  if (phi < r - dr * r) return lbda * 0.5 * ((phi - (r - 2 * dr * r)) / (dr * r)) ** 2 + (1 - lbda) * 0.5;
+  if (phi < r + dr * r) { const J = (r - phi) / (dr * r); return lbda * ((1 - 0.5 * J * J) - 0.5) + 0.5; }
+  return 0.5;
+}
+function computeCostmap() {
+  const active = sensors.filter(s => s.holder);
+  if (!active.length) return null;
+  const q = new THREE.Quaternion();
+  const info = active.map(s => {
+    s.holder.updateWorldMatrix(true, false);
+    const apex = new THREE.Vector3().setFromMatrixPosition(s.holder.matrixWorld);
+    const dir = new THREE.Vector3(1, 0, 0).applyQuaternion(s.holder.getWorldQuaternion(q));
+    return { s, ax: apex.x, ay: apex.y, H: Math.atan2(dir.y, dir.x),
+      r: s.measured != null ? s.measured : s.maxRange, clear: s.measured == null,
+      maxA: s.fovH * Math.PI / 360, rr: s.maxRange };
+  });
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const it of info) { const R = it.rr * 1.2; minX = Math.min(minX, it.ax - R); maxX = Math.max(maxX, it.ax + R); minY = Math.min(minY, it.ay - R); maxY = Math.max(maxY, it.ay + R); }
+  const nx = Math.min(600, Math.ceil((maxX - minX) / RES)), ny = Math.min(600, Math.ceil((maxY - minY) / RES));
+  const grid = new Float32Array(nx * ny).fill(0.5);
+  const dr = RES, stats = {};
+  for (const it of info) {
+    let arc = 0, mark = 0, cone = 0;
+    const R = it.rr * 1.2;
+    const i0 = Math.max(0, Math.floor((it.ax - R - minX) / RES)), i1 = Math.min(nx - 1, Math.ceil((it.ax + R - minX) / RES));
+    const j0 = Math.max(0, Math.floor((it.ay - R - minY) / RES)), j1 = Math.min(ny - 1, Math.ceil((it.ay + R - minY) / RES));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const cx = minX + (i + 0.5) * RES, cy = minY + (j + 0.5) * RES;
+      const dx = cx - it.ax, dy = cy - it.ay, phi = Math.hypot(dx, dy);
+      if (phi > R) continue;
+      let theta = Math.atan2(dy, dx) - it.H;
+      while (theta > Math.PI) theta -= 2 * Math.PI; while (theta < -Math.PI) theta += 2 * Math.PI;
+      const sensor = it.clear ? 0 : nav2SensorModel(it.r, phi, theta, it.maxA, CM.phiV);
+      const idx = i * ny + j, prior = grid[idx];
+      const num = sensor * prior, den = num + (1 - sensor) * (1 - prior);
+      grid[idx] = den > 1e-9 ? num / den : prior;
+      if (Math.abs(theta) <= it.maxA) {
+        cone++;
+        if (!it.clear && phi >= it.r - dr * it.r && phi <= it.r + dr * it.r) arc++;
+        if (grid[idx] > CM.mark) mark++;
+      }
+    }
+    stats[it.s.id] = { r: it.r, clear: it.clear, arc, mark, cone };
+  }
+  let markTot = 0, freeTot = 0;
+  for (let k = 0; k < grid.length; k++) { if (grid[k] > CM.mark) markTot++; else if (grid[k] < CM.clear) freeTot++; }
+  return { grid, nx, ny, minX, minY, stats, markTot, freeTot };
+}
+function heat(p) { // 0 파랑 → 0.5 회색 → 1 빨강
+  const c = new THREE.Color();
+  if (p < 0.5) c.setRGB(0.25 + p, 0.45 + p * 0.6, 0.75); else c.setRGB(0.55 + (p - 0.5) * 0.9, 0.5 - (p - 0.5) * 0.7, 0.35 - (p - 0.5) * 0.5);
+  return c.getHex();
+}
+function renderCostmap(cm) {
+  costmapGroup.clear(); cmInst = null;
+  if (!cm) return;
+  const { grid, nx, ny, minX, minY } = cm;
+  const cells = [];
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+    const p = grid[i * ny + j];
+    let color = null;
+    if (CM.mode === 'final') { if (p > CM.mark) color = 0xc0392b; else if (p < CM.clear) color = 0x2f6fb0; }
+    else if (Math.abs(p - 0.5) > 0.02) color = heat(p);
+    if (color != null) cells.push({ i, j, color });
+  }
+  if (!cells.length) return;
+  const geo = new THREE.PlaneGeometry(RES * 0.95, RES * 0.95);
+  const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+  const inst = new THREE.InstancedMesh(geo, mat, cells.length);
+  const m = new THREE.Matrix4(), col = new THREE.Color();
+  cells.forEach((c, k) => {
+    m.makeTranslation(minX + (c.i + 0.5) * RES, minY + (c.j + 0.5) * RES, 0.02);
+    inst.setMatrixAt(k, m); inst.setColorAt(k, col.setHex(c.color));
+  });
+  inst.instanceMatrix.needsUpdate = true;
+  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+  costmapGroup.add(inst); cmInst = inst;
+}
+function updateCostmap() {
+  const ro = document.getElementById('cmReadout');
+  if (!CM.enabled) { costmapGroup.clear(); if (ro) ro.textContent = '표시가 꺼져 있습니다.'; return; }
+  const cm = computeCostmap();
+  renderCostmap(cm);
+  if (!ro) return;
+  if (!cm) { ro.textContent = '센서를 추가하세요.'; return; }
+  const s = sensors.find(x => x.id === selSensor);
+  const st = s ? cm.stats[s.id] : null;
+  let html = `전체 LETHAL <b style="color:#f0776a">${cm.markTot}</b> px · FREE <b style="color:#6aa9e0">${cm.freeTot}</b> px<br>`;
+  if (s && st) {
+    html += `선택 <b style="color:var(--ink)">${s.name}</b><br>` +
+      (st.clear ? '· 미검출 → 콘 free 처리<br>' :
+        `· 측정거리 r = <b style="color:var(--ink)">${st.r.toFixed(3)} m (${Math.round(st.r * 100)} cm)</b><br>` +
+        `· 측정 호(occupied 밴드) = <b style="color:var(--ink)">${st.arc} px</b> @5cm<br>`) +
+      `· LETHAL 마킹 = ${st.mark} px · 콘 셀 ${st.cone}`;
+  }
+  ro.innerHTML = html;
+}
+// 패널 wiring
+document.getElementById('cmOn').addEventListener('change', e => { CM.enabled = e.target.checked; scheduleDetect(); });
+document.getElementById('cmMode').addEventListener('change', e => { CM.mode = e.target.value; scheduleDetect(); });
+function cmSlider(id, key, fix) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => { CM[key] = +el.value; document.getElementById(id + 'v').textContent = (+el.value).toFixed(fix); scheduleDetect(); });
+}
+cmSlider('cmPhiV', 'phiV', 2); cmSlider('cmMark', 'mark', 2); cmSlider('cmClear', 'clear', 2);
 
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
