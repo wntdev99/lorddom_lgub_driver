@@ -105,10 +105,35 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">통로 (양측 벽)</div>
+      <div class="row"><label>표시</label><input type="checkbox" id="corrOn" checked></div>
+      <div class="row"><label>폭</label><input type="range" id="corrW" min="0.4" max="4" step="0.05" value="1.2"><span class="v" id="corrWv">1.20 m</span></div>
+      <div class="row"><label>길이</label><input type="range" id="corrL" min="1" max="12" step="0.1" value="6"><span class="v" id="corrLv">6.0 m</span></div>
+      <div class="row"><label>높이</label><input type="range" id="corrH" min="0.1" max="2" step="0.05" value="0.8"><span class="v" id="corrHv">0.80 m</span></div>
+    </div>
+
+    <div class="p-sec">
+      <div class="p-h">장애물</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" id="addBox">+ 박스</button>
+        <button class="btn" id="addCyl">+ 원기둥</button>
+      </div>
+      <div id="obsList" style="display:flex;flex-wrap:wrap;gap:4px;margin:9px 0 0;"></div>
+      <div id="obsEdit" style="display:none;margin-top:9px;"></div>
+    </div>
+
+    <div class="p-sec">
+      <div class="p-h">제자리 선회 스윕</div>
+      <div class="row"><label>표시</label><input type="checkbox" id="sweepOn"></div>
+      <div class="row"><label>선회 반경 R</label><span class="v" id="sweepR">— m</span></div>
+      <div class="note">로봇이 제자리로 360° 돌 때 footprint 바깥 모서리가 그리는 원. 관절(암·도어)을 펼치면 반경이 커진다.</div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">진행 상태</div>
       <div class="milestone">
         ✅ M1 — 3D 뷰 + URDF 로딩<br>
-        ⬜ M2 — 통로·장애물<br>
+        ✅ M2 — 통로·장애물·선회 스윕<br>
         ⬜ M3 — 초음파 센서 배치<br>
         ⬜ M4 — nav2 costmap<br>
         ⬜ M5 — 커버리지/간섭<br>
@@ -194,9 +219,9 @@ loader.load(
     document.getElementById('robotName').textContent =
       `로봇: ${robot.robotName || 'mW2.0'} · 링크 ${Object.keys(robot.links).length} · 관절 ${Object.keys(robot.joints).length}`;
     buildJointUI();
-    manager.onLoad = () => { fitView(); setStatus(`로딩 완료 (메시 포함)`, 'ok'); };
+    manager.onLoad = () => { fitView(); updateSweep(); setStatus(`로딩 완료 (메시 포함)`, 'ok'); };
     // 메시가 이미 캐시되어 onLoad가 안 뜨는 경우 대비
-    setTimeout(() => { if (statusEl.className !== 'ok') { fitView(); setStatus('로딩 완료', 'ok'); } }, 1200);
+    setTimeout(() => { if (statusEl.className !== 'ok') { fitView(); updateSweep(); setStatus('로딩 완료', 'ok'); } }, 1200);
   },
   undefined,
   err => setStatus('URDF 로딩 실패: ' + (err?.message || err), 'err')
@@ -223,6 +248,7 @@ function buildJointUI() {
       const val = parseFloat(e.target.value);
       robot.setJointValue(j.name, val);
       document.getElementById('jv-' + j.name).textContent = val.toFixed(2) + ' ' + unit;
+      updateSweep();
     });
   }
 }
@@ -250,6 +276,160 @@ function fitView() {
   controls.update();
 }
 document.getElementById('btnFit').addEventListener('click', fitView);
+
+// ── M2: 통로 / 장애물 / 선회 스윕 ───────────────────────────
+// 센서 레이캐스트 대상(M3에서 사용): 통로벽 + 장애물 mesh
+const raycastTargets = [];
+function dropTargets(kind) {
+  for (let i = raycastTargets.length - 1; i >= 0; i--)
+    if (raycastTargets[i].userData.kind === kind) raycastTargets.splice(i, 1);
+}
+
+// --- 통로 ---
+const corridorGroup = new THREE.Group();
+scene.add(corridorGroup);
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x8894a6, transparent: true, opacity: 0.32, roughness: 0.95, side: THREE.DoubleSide });
+function buildCorridor() {
+  corridorGroup.clear();
+  dropTargets('wall');
+  document.getElementById('corrWv').textContent = (+corrW.value).toFixed(2) + ' m';
+  document.getElementById('corrLv').textContent = (+corrL.value).toFixed(1) + ' m';
+  document.getElementById('corrHv').textContent = (+corrH.value).toFixed(2) + ' m';
+  if (!corrOn.checked) return;
+  const W = +corrW.value, L = +corrL.value, H = +corrH.value, t = 0.05;
+  for (const sign of [1, -1]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(L, t, H), wallMat);
+    m.position.set(0, sign * (W / 2 + t / 2), H / 2);
+    m.userData.kind = 'wall';
+    corridorGroup.add(m);
+    raycastTargets.push(m);
+  }
+}
+const corrOn = document.getElementById('corrOn'), corrW = document.getElementById('corrW'),
+      corrL = document.getElementById('corrL'), corrH = document.getElementById('corrH');
+[corrOn, corrW, corrL, corrH].forEach(el => el.addEventListener('input', buildCorridor));
+
+// --- 장애물 ---
+const obstacleGroup = new THREE.Group();
+scene.add(obstacleGroup);
+const obstacles = [];
+let obsSeq = 0, selectedId = null;
+const OBS_COLOR = 0xdb9a4b, OBS_SEL = 0x2bb7c4;
+
+function addObstacle(type) {
+  const o = { id: ++obsSeq, type, x: 1.0, y: 0, z: type === 'box' ? 0.15 : 0.2, yawDeg: 0,
+              sx: 0.3, sy: 0.3, sz: 0.3, r: 0.15, h: 0.4, mesh: null };
+  obstacles.push(o);
+  rebuildObsMesh(o);
+  selectObs(o.id);
+}
+function rebuildObsMesh(o) {
+  if (o.mesh) {
+    obstacleGroup.remove(o.mesh); o.mesh.geometry.dispose();
+    const i = raycastTargets.indexOf(o.mesh); if (i >= 0) raycastTargets.splice(i, 1);
+  }
+  let geo;
+  if (o.type === 'box') geo = new THREE.BoxGeometry(o.sx, o.sy, o.sz);
+  else { geo = new THREE.CylinderGeometry(o.r, o.r, o.h, 28); geo.rotateX(Math.PI / 2); } // 축을 Z로
+  const mat = new THREE.MeshStandardMaterial({ color: o.id === selectedId ? OBS_SEL : OBS_COLOR, transparent: true, opacity: 0.55, roughness: 0.7 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.kind = 'obstacle'; mesh.userData.obsId = o.id;
+  o.mesh = mesh;
+  applyObsTransform(o);
+  obstacleGroup.add(mesh);
+  raycastTargets.push(mesh);
+}
+function applyObsTransform(o) {
+  o.mesh.position.set(o.x, o.y, o.z);
+  o.mesh.rotation.z = o.yawDeg * Math.PI / 180;
+}
+function selectObs(id) {
+  selectedId = id;
+  for (const o of obstacles) o.mesh.material.color.setHex(o.id === id ? OBS_SEL : OBS_COLOR);
+  renderObsList();
+  buildObsEdit();
+}
+function renderObsList() {
+  const list = document.getElementById('obsList');
+  list.innerHTML = '';
+  if (!obstacles.length) { list.innerHTML = '<div class="note">없음</div>'; return; }
+  for (const o of obstacles) {
+    const chip = document.createElement('button');
+    chip.className = 'btn';
+    chip.style.cssText = 'width:auto;padding:3px 9px;font-size:11px;margin:0;' +
+      (o.id === selectedId ? 'border-color:var(--accent);color:var(--accent-ink);' : '');
+    chip.textContent = (o.type === 'box' ? '박스' : '원기둥') + ' #' + o.id;
+    chip.onclick = () => selectObs(o.id);
+    list.appendChild(chip);
+  }
+}
+function sl(label, id, min, max, step, val, unit) {
+  return `<div class="row"><label>${label}</label>` +
+    `<input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}">` +
+    `<span class="v" id="${id}v">${(+val).toFixed(2)}${unit}</span></div>`;
+}
+function buildObsEdit() {
+  const box = document.getElementById('obsEdit');
+  const o = obstacles.find(x => x.id === selectedId);
+  if (!o) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  let size = o.type === 'box'
+    ? sl('가로 X', 'osx', 0.05, 2, 0.01, o.sx, ' m') + sl('세로 Y', 'osy', 0.05, 2, 0.01, o.sy, ' m') + sl('높이 Z', 'osz', 0.05, 2, 0.01, o.sz, ' m')
+    : sl('반지름', 'orad', 0.03, 1, 0.01, o.r, ' m') + sl('높이', 'oh', 0.05, 2, 0.01, o.h, ' m');
+  box.innerHTML =
+    sl('위치 X(전방)', 'ox', -6, 6, 0.05, o.x, ' m') +
+    sl('위치 Y(좌+)', 'oy', -4, 4, 0.05, o.y, ' m') +
+    sl('위치 Z', 'oz', 0, 2.5, 0.05, o.z, ' m') +
+    sl('Yaw', 'oyaw', -180, 180, 1, o.yawDeg, '°') +
+    size +
+    '<button class="btn" id="obsDel" style="margin-top:8px;border-color:#5a2a26;color:#f0776a;">선택 장애물 삭제</button>';
+  const bind = (id, key, geo, fix, unit) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.addEventListener('input', () => {
+      o[key] = +el.value;
+      document.getElementById(id + 'v').textContent = (+el.value).toFixed(fix) + unit;
+      if (geo) rebuildObsMesh(o); else applyObsTransform(o);
+    });
+  };
+  bind('ox', 'x', false, 2, ' m'); bind('oy', 'y', false, 2, ' m'); bind('oz', 'z', false, 2, ' m');
+  bind('oyaw', 'yawDeg', false, 0, '°');
+  if (o.type === 'box') { bind('osx', 'sx', true, 2, ' m'); bind('osy', 'sy', true, 2, ' m'); bind('osz', 'sz', true, 2, ' m'); }
+  else { bind('orad', 'r', true, 2, ' m'); bind('oh', 'h', true, 2, ' m'); }
+  document.getElementById('obsDel').onclick = () => {
+    obstacleGroup.remove(o.mesh);
+    const i = raycastTargets.indexOf(o.mesh); if (i >= 0) raycastTargets.splice(i, 1);
+    obstacles.splice(obstacles.indexOf(o), 1);
+    selectedId = obstacles.length ? obstacles[obstacles.length - 1].id : null;
+    selectObs(selectedId);
+  };
+}
+document.getElementById('addBox').onclick = () => addObstacle('box');
+document.getElementById('addCyl').onclick = () => addObstacle('cyl');
+renderObsList();
+
+// --- 제자리 선회 스윕 ---
+const sweepGroup = new THREE.Group();
+scene.add(sweepGroup);
+const sweepOn = document.getElementById('sweepOn');
+function updateSweep() {
+  sweepGroup.clear();
+  if (!robot || !sweepOn.checked) { document.getElementById('sweepR').textContent = '— m'; return; }
+  robot.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(robot);
+  if (b.isEmpty()) return;
+  let R = 0;
+  for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) R = Math.max(R, Math.hypot(x, y));
+  document.getElementById('sweepR').textContent = R.toFixed(2) + ' m';
+  const seg = 96, pts = [];
+  for (let i = 0; i <= seg; i++) { const a = i / seg * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R, 0.012)); }
+  sweepGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: OBS_SEL })));
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(R, seg), new THREE.MeshBasicMaterial({ color: OBS_SEL, transparent: true, opacity: 0.07, side: THREE.DoubleSide }));
+  disk.position.z = 0.006;
+  sweepGroup.add(disk);
+}
+sweepOn.addEventListener('change', updateSweep);
+
+buildCorridor();
 
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
