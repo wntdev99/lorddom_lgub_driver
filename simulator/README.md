@@ -53,6 +53,13 @@ simulator/
 - [x] **M5** — 커버리지/사각 맵 + 센서 간 간섭(crosstalk) 경고
 - [x] **M6** — 기존 URDF에 센서 반영 내보내기 (link+fixed joint+gazebo/gpu_lidar, 복사/다운로드)
 
+## 설정 저장
+
+- 센서·장애물·통로·costmap 설정은 **브라우저(localStorage)에 자동 저장**되어
+  새로고침·서버 재시작 후에도 그대로 복원된다.
+- 사이드바 "설정" 패널에서 **파일 저장**(`ultrasonic_layout.json`) / **불러오기**로
+  다른 PC와 배치를 공유할 수 있고, **전체 초기화**로 리셋한다.
+
 ## 참고
 
 - 좌표계: X 전방 · Y 좌 · Z 상 (ROS REP-103).

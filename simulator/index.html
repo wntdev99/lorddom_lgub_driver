@@ -99,6 +99,17 @@
     </div>
 
     <div class="p-sec">
+      <div class="p-h">설정 (자동 저장)</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" id="cfgSave">파일 저장</button>
+        <button class="btn" id="cfgLoad">불러오기</button>
+      </div>
+      <button class="btn" id="cfgReset" style="margin-top:6px;border-color:#5a2a26;color:#f0776a;">전체 초기화</button>
+      <input type="file" id="cfgFile" accept=".json,application/json" style="display:none;">
+      <div class="note" style="margin-top:6px;">배치가 브라우저에 자동 저장되어 새로고침·서버 재시작 후에도 유지됩니다. 파일로 저장하면 다른 PC와 공유할 수 있습니다.</div>
+    </div>
+
+    <div class="p-sec">
       <div class="p-h">관절 (URDF)</div>
       <div class="jointlist" id="jointlist"><div class="note">로딩 중…</div></div>
       <button class="btn" id="btnZeroJoints">모든 관절 0으로</button>
@@ -270,9 +281,9 @@ loader.load(
     document.getElementById('robotName').textContent =
       `로봇: ${robot.robotName || 'mW2.0'} · 링크 ${Object.keys(robot.links).length} · 관절 ${Object.keys(robot.joints).length}`;
     buildJointUI();
-    manager.onLoad = () => { fitView(); updateSweep(); setStatus(`로딩 완료 (메시 포함)`, 'ok'); };
+    manager.onLoad = () => { fitView(); loadLocalOnce(); updateSweep(); setStatus(`로딩 완료 (메시 포함)`, 'ok'); };
     // 메시가 이미 캐시되어 onLoad가 안 뜨는 경우 대비
-    setTimeout(() => { if (statusEl.className !== 'ok') { fitView(); updateSweep(); setStatus('로딩 완료', 'ok'); } }, 1200);
+    setTimeout(() => { if (statusEl.className !== 'ok') { fitView(); loadLocalOnce(); updateSweep(); setStatus('로딩 완료', 'ok'); } }, 1200);
   },
   undefined,
   err => setStatus('URDF 로딩 실패: ' + (err?.message || err), 'err')
@@ -497,7 +508,7 @@ function updateSweep() {
   disk.position.z = 0.006;
   sweepGroup.add(disk);
 }
-sweepOn.addEventListener('change', updateSweep);
+sweepOn.addEventListener('change', () => { updateSweep(); scheduleDetect(); });
 
 buildCorridor();
 
@@ -934,6 +945,93 @@ document.getElementById('expDl').addEventListener('click', () => {
   a.click(); URL.revokeObjectURL(a.href);
 });
 
+// ── 설정 저장/복원 (localStorage 자동 + JSON 파일) ──────────
+const LS_KEY = 'lgub_sim_config_v1';
+let configLoaded = false;
+function serializeConfig() {
+  return {
+    version: 1,
+    corridor: { on: corrOn.checked, W: +corrW.value, L: +corrL.value, H: +corrH.value },
+    obstacles: obstacles.map(o => ({ type: o.type, x: o.x, y: o.y, z: o.z, yawDeg: o.yawDeg, sx: o.sx, sy: o.sy, sz: o.sz, r: o.r, h: o.h })),
+    sensors: sensors.map(s => ({ name: s.name, parentLink: s.parentLink, face: s.face, x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: s.pitch, fovH: s.fovH, fovV: s.fovV, minRange: s.minRange, maxRange: s.maxRange, updateRate: s.updateRate })),
+    cm: { enabled: CM.enabled, mode: CM.mode, phiV: CM.phiV, mark: CM.mark, clear: CM.clear },
+    cov: { enabled: COV.enabled },
+    sweep: { on: sweepOn.checked },
+    seq: { sensor: sensorSeq, obs: obsSeq },
+  };
+}
+function clearAll() {
+  for (const s of sensors) if (s.holder && s.holder.parent) s.holder.parent.remove(s.holder);
+  sensors.length = 0; selSensor = null;
+  for (const o of obstacles) obstacleGroup.remove(o.mesh);
+  obstacles.length = 0; selectedId = null;
+  for (let i = raycastTargets.length - 1; i >= 0; i--) if (raycastTargets[i].userData.kind === 'obstacle') raycastTargets.splice(i, 1);
+  renderSenList(); buildSenEdit(); renderObsList(); buildObsEdit();
+}
+function createObstacleFrom(d) {
+  const o = { id: ++obsSeq, type: d.type, x: d.x, y: d.y, z: d.z, yawDeg: d.yawDeg || 0, sx: d.sx, sy: d.sy, sz: d.sz, r: d.r, h: d.h, mesh: null };
+  obstacles.push(o); rebuildObsMesh(o);
+}
+function createSensorFrom(d) {
+  const id = ++sensorSeq;
+  const s = { id, parentLink: d.parentLink || 'base_link', face: d.face || 'front', x: d.x, y: d.y, z: d.z, yaw: d.yaw, pitch: d.pitch, fovH: d.fovH, fovV: d.fovV, minRange: d.minRange, maxRange: d.maxRange, updateRate: d.updateRate, color: PALETTE[(id - 1) % PALETTE.length], holder: null, measured: null, name: d.name };
+  sensors.push(s); rebuildSensor(s);
+}
+function applyConfig(cfg) {
+  if (!cfg || !robot) return;
+  clearAll();
+  if (cfg.corridor) { corrOn.checked = !!cfg.corridor.on; corrW.value = cfg.corridor.W; corrL.value = cfg.corridor.L; corrH.value = cfg.corridor.H; }
+  buildCorridor();
+  (cfg.obstacles || []).forEach(createObstacleFrom);
+  renderObsList();
+  selectedId = obstacles.length ? obstacles[obstacles.length - 1].id : null;
+  if (selectedId) selectObs(selectedId); else buildObsEdit();
+  (cfg.sensors || []).forEach(createSensorFrom);
+  selSensor = sensors.length ? sensors[sensors.length - 1].id : null;
+  renderSenList(); buildSenEdit();
+  if (cfg.cm) {
+    CM.enabled = !!cfg.cm.enabled; CM.mode = cfg.cm.mode || 'final';
+    CM.phiV = cfg.cm.phiV ?? 1.2; CM.mark = cfg.cm.mark ?? 0.8; CM.clear = cfg.cm.clear ?? 0.2;
+    document.getElementById('cmOn').checked = CM.enabled;
+    document.getElementById('cmMode').value = CM.mode;
+    document.getElementById('cmPhiV').value = CM.phiV; document.getElementById('cmPhiVv').textContent = CM.phiV.toFixed(2);
+    document.getElementById('cmMark').value = CM.mark; document.getElementById('cmMarkv').textContent = CM.mark.toFixed(2);
+    document.getElementById('cmClear').value = CM.clear; document.getElementById('cmClearv').textContent = CM.clear.toFixed(2);
+  }
+  if (cfg.cov) { COV.enabled = !!cfg.cov.enabled; document.getElementById('covOn').checked = COV.enabled; }
+  if (cfg.sweep) sweepOn.checked = !!cfg.sweep.on;
+  if (cfg.seq) { sensorSeq = Math.max(sensorSeq, cfg.seq.sensor || 0); obsSeq = Math.max(obsSeq, cfg.seq.obs || 0); }
+  updateSweep(); scheduleDetect();
+}
+function saveLocal() {
+  if (!configLoaded) return; // 초기 복원 전에는 빈 상태로 덮어쓰지 않음
+  try { localStorage.setItem(LS_KEY, JSON.stringify(serializeConfig())); } catch (e) { /* 용량초과 등 무시 */ }
+}
+function loadLocalOnce() {
+  if (configLoaded) return; configLoaded = true;
+  try { const t = localStorage.getItem(LS_KEY); if (t) applyConfig(JSON.parse(t)); } catch (e) { /* 손상 시 무시 */ }
+}
+document.getElementById('cfgSave').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(serializeConfig(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ultrasonic_layout.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+document.getElementById('cfgLoad').addEventListener('click', () => document.getElementById('cfgFile').click());
+document.getElementById('cfgFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => { try { applyConfig(JSON.parse(rd.result)); saveLocal(); setStatus('설정 불러옴', 'ok'); } catch (err) { setStatus('설정 파일 오류: ' + err.message, 'err'); } };
+  rd.readAsText(file); e.target.value = '';
+});
+document.getElementById('cfgReset').addEventListener('click', () => {
+  if (!confirm('센서·장애물·통로 설정을 모두 초기화할까요?')) return;
+  localStorage.removeItem(LS_KEY);
+  clearAll();
+  corrOn.checked = true; corrW.value = 1.2; corrL.value = 6; corrH.value = 0.8; buildCorridor();
+  CM.enabled = false; document.getElementById('cmOn').checked = false;
+  COV.enabled = false; document.getElementById('covOn').checked = false;
+  sweepOn.checked = false; updateSweep(); scheduleDetect();
+});
+
 // ── 렌더 루프 & 리사이즈 ────────────────────────────────────
 function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -947,7 +1045,7 @@ resize();
 (function loop() {
   requestAnimationFrame(loop);
   controls.update();
-  if (detectDirty) { runDetections(); detectDirty = false; }
+  if (detectDirty) { runDetections(); detectDirty = false; saveLocal(); }
   renderer.render(scene, camera);
 })();
 </script>
