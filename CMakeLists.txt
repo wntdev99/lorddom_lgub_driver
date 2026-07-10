@@ -39,6 +39,10 @@ target_link_libraries(lgub_reconnect_demo PRIVATE lorddom_lgub)
 add_executable(lgub tools/lgub_cli.cpp)
 target_link_libraries(lgub PRIVATE lorddom_lgub)
 
+# --- 웹 대시보드 앱 (브라우저로 여는 실시간 화면) ---
+add_executable(lgub_webapp tools/lgub_webapp.cpp)
+target_link_libraries(lgub_webapp PRIVATE lorddom_lgub)
+
 # --- 오프라인 테스트 (하드웨어 불필요) ---
 enable_testing()
 add_executable(test_crc16 test/test_crc16.cpp)

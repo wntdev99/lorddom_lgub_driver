@@ -94,8 +94,22 @@ if (r.status == lorddom::Status::Ok)
 ./build/lgub stream --sec 30        # 줄 단위 스트리밍
 ./build/lgub log --out d.csv --sec 60  # CSV 로깅 + 유효율/평균/최소/최대 요약
 ```
-포트를 생략하면 `/dev/ttyUSB*` 를 자동 탐지한다. 비전문가는 `.claude/skills/`의
-`lgub-sensor`·`lgub-monitor` 스킬을 통해 자연어로 위 기능을 쓸 수 있다.
+포트를 생략하면 `/dev/ttyUSB*` 를 자동 탐지한다.
+
+## 웹 대시보드 앱 (`lgub_webapp`) — 브라우저로 여는 실시간 화면
+```bash
+./build/lgub_webapp --http 8080   # 후 브라우저에서 http://localhost:8080
+```
+큰 숫자 + 게이지 + 상태가 250ms로 갱신. SDK를 직접 호출하는 의존성 0 C++ 웹서버
+(localhost 전용 바인드). 터미널을 못 쓰는 하드웨어팀도 브라우저만 열면 된다.
+
+## 비전문가용 자연어 스킬 (`.claude/skills/`)
+| 스킬 | 발동 예 | 하는 일 |
+|---|---|---|
+| `lgub-connection` | "연결됐어?" | 어댑터→포트→권한→센서 사슬 점검 |
+| `lgub-sensor` | "거리 얼마", "기록해줘" | measure/stream/log + SDK 기반 확장개발 |
+| `lgub-monitor` | "계속 보여줘" | Claude가 값을 대화창에 실시간 보고(터미널 불필요) |
+| `lgub-app` | "앱 띄워줘" | 웹 대시보드를 띄우고 브라우저를 열어줌 |
 
 ## 배선 (공식 데이터시트 확정, 모델 LGU1000-18GM55-R4-V15)
 
